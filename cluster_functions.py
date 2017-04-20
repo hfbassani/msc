@@ -22,6 +22,7 @@ Observations :
 
 import itertools
 import munkres
+import read_arff
 
 def permute_cols(a, inds):
     """
@@ -105,10 +106,10 @@ def results2confusion(data_file, results_file):
     """
 
     #import functions.read_arff
-    from . import read_arff
+    #from . import read_arff
 
     #data = functions.read_arff.read_arff(data_file)     
-    data = read_arff(data_file)     
+    data = read_arff.read_arff(data_file, ',')
     results = open(results_file, 'r')
 
     # first line of results contains the number of found 
@@ -210,9 +211,9 @@ def multilabelresults2clustering_error(data_file, results_file, qty_categories):
     the label in the file is the decimal notation, i.e., 5.
     """
 
-    from . import read_arff
+    #from . import read_arff
 
-    data = read_arff(data_file)
+    data = read_arff.read_arff(data_file, ',')
     results = open(results_file, 'r')
 
     # first line of results contains the number of found 
@@ -294,14 +295,14 @@ def multilabelresults2clustering_error(data_file, results_file, qty_categories):
 
 
 
-"""    
+
 if __name__ == '__main__':
     
     import sys
-
     data_file = sys.argv[1]
     results_file = sys.argv[2]
+    qty_categories = int(sys.argv[3])
     
-    confusion = results2confusion(data_file, results_file)
-    print(confusion)
-"""
+    ce, outconf = multilabelresults2clustering_error(data_file, results_file, qty_categories)
+    print ce
+

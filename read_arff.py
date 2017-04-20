@@ -25,17 +25,17 @@ Observations :
 
 import numpy as np
 
-def read_arff(filename):
+def read_arff(filename, sep):
 
     f = open(filename, 'r')
 
     string = f.readline()
 
-    while string != '@data\n':
+    while string[:5] != '@data':
 
         string = f.readline()
 
-    data = [line.split('\t') for line in f]
+    data = [line.split(sep) for line in f]
 
     for i in range(len(data)):
 
