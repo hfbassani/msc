@@ -1,10 +1,6 @@
 require 'math'
 require 'torch'
 
---[[duvidas
-economizar na parte da neighborhood
-]]--
-
 eps = 1e-9
 
 function square_norm(dx, dy)
@@ -72,13 +68,27 @@ function DSSOM:calculate_activation(pattern, global_rel)
 	return bi, bj, max_a
 end
 
-function DSSOM:neighborhood(i, j, bi, bj)
+--precalculate neighborhood function
+function DSSOM:calc_neigh_table()
 	local denom = (2*math.pow(self.nei_r, 2))
-	if denom < 1e-30 then
-		return 0
-	else
-		return math.exp(-square_norm(i-bi, j-bj)/denom)
+	local mid, n = self.nei_sz + 1, 2*self.nei_sz + 1
+	self.neigh_table = {}
+
+	for i = 1, n do
+		self.neigh_table[i] = {}
+		for j = 1, n do
+			if denom < 1e-30 then
+				self.neigh_table[i][j] = 0
+			else
+				self.neigh_table[i][j] = math.exp(-square_norm(mid-i, mid-j)/denom)
+			end
+		end
 	end
+end
+
+function DSSOM:neighborhood(di, dj)
+	local mid = self.nei_sz + 1
+	return self.neigh_table[di+mid][dj+mid]
 end
 
 function DSSOM:neigh_range(bi, bj)
@@ -95,7 +105,7 @@ function DSSOM:update_distance(pattern, bi, bj)
 		for j = lj, hj do
 			local w = self.proto[i][j]
 			local d = self.distance[i][j]
-			local b = self.dist_cr*self:neighborhood(i, j, bi, bj)
+			local b = self.dist_cr*self:neighborhood(i-bi, j-bj)
 			self.distance[i][j] = d*b + torch.abs(pattern-w)*(1-b)
 		end
 	end
@@ -122,7 +132,7 @@ function DSSOM:update_protos(pattern, bi, bj)
 	for i = li, hi do
 		for j = lj, hj do
 			local w = self.proto[i][j]
-			local neigh = self:neighborhood(i, j, bi, bj)
+			local neigh = self:neighborhood(i-bi, j-bj)
 			self.proto[i][j] = w + (pattern - w)*self.pro_lr*neigh
 		end
 	end
@@ -137,6 +147,7 @@ function DSSOM:organization(data)
 
 	self.pro_lr = self.pro_lr0
 	self.nei_r = self.nei_r0
+	self:calc_neigh_table()
 
 	local nmax = self.nmax or dn
 	for t = 1, self.tmax do
@@ -160,6 +171,7 @@ function DSSOM:organization(data)
 
 		self.pro_lr = self.pro_lr0*math.exp(-t/self.pro_lr_c)
 		self.nei_r = self.nei_r0*math.exp(-t/self.nei_r_c)
+		self:calc_neigh_table()
 	end
 end
 
