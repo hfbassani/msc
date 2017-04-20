@@ -93,9 +93,13 @@ function write_status(params, path)
 	file:close()
 end
 
+function target_achieved()
+	return test_vars.min_error <= test_vars.target_error
+end
+
 function eval_score(params)
-	write_status(params, test_vars.temp_file.."_params")
-	local tmp1, tmp2 = test_vars.temp_file.."_tmp", test_vars.temp_file.."_tmp2"
+	write_status(params, test_vars.temp_file.."/params")
+	local tmp1, tmp2 = test_vars.temp_file.."/tmp", test_vars.temp_file.."/tmp2"
 
 	local dssom = DSSOM:new(params)
 	local clusters = dssom:get_clusters(test_vars.data)
@@ -124,6 +128,7 @@ function iterate_win_thr(params)
 	for i = 1, 2 do
 		params.win_thr = win_thr
 		eval_score(params)
+		if target_achieved() then return end
 		win_thr = win_thr + 0.985
 	end
 end
@@ -133,6 +138,7 @@ function iterate_kmax(params)
 	for i = 1, 2 do
 		params.kmax = kmax
 		iterate_win_thr(params)
+		if target_achieved() then return end
 		kmax = kmax + 1
 	end
 end
@@ -142,6 +148,7 @@ function iterate_rel_thr(params)
 	for i = 1, 3 do
 		params.rel_thr = rel_thr
 		iterate_kmax(params)
+		if target_achieved() then return end
 		rel_thr = rel_thr + 0.05
 	end
 end
@@ -151,28 +158,35 @@ function iterate_dist_cr(params)
 	for i = 1, 3 do
 		params.dist_cr = dist_cr
 		iterate_rel_thr(params)
+		if target_achieved() then return end
 		dist_cr = dist_cr * 2
 	end
 end
 
 function iterate_N(params)
 	local n = 2
-	for i = 1, 3 do--should be 6
-		params.h = 1
+	for i = 1, 4 do--should be 6
 		params.w = n
 		iterate_dist_cr(params)
+		if target_achieved() then return end
 		n = n * 2
 	end
 end
 
-function run_tests(df, qc, tf)
-	test_vars.data_file = df
-	test_vars.qty_categories = qc
-	test_vars.temp_file = tf
-	test_vars.data = read_arff_file(test_vars.data_file)
-	test_vars.min_error = 1e20
+function run_tests(df, qc, te, tf)
+	test_vars = {
+		data_file = df,
+		qty_categories = qc,
+		target_error = tonumber(te),
+		temp_file = tf,
+		data = read_arff_file(df),
+		min_error = 1e20
+	}
 
-	local params = { dim = table.getn(test_vars.data[1]) }
+	local params = {
+		dim = table.getn(test_vars.data[1]),
+		h = 1
+	}
 	iterate_N(params)
 
 	debug(io.stdout, test_vars, "data_file")
@@ -184,5 +198,5 @@ function run_tests(df, qc, tf)
 	debug(io.stdout, test_vars.best_params, "win_thr")
 end
 
-run_tests(arg[1], arg[2], arg[3])
+run_tests(arg[1], arg[2], arg[3], arg[4])
 
