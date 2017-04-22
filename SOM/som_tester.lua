@@ -164,7 +164,7 @@ function iterate_dist_cr(params)
 end
 
 function iterate_N(params)
-	local n = 2
+	local n = 8
 	for i = 1, 4 do--should be 6
 		params.w = n
 		iterate_dist_cr(params)
