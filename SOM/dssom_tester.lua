@@ -1,11 +1,12 @@
 --TODO: add number of nodes as parameter
 --[[
-usage: luajit dssom_tester.lua data_folder file_name qty_categories target_error output_folder
+usage: luajit dssom_tester.lua data_folder file_name qty_categories target_error output_folder [--exact_n]
 data_folder: data file folder
 file_name: input .arff file name
 qty_categories: amount of real clusters
 target_error: clustering error value you want to achieve
 output_folder: folder for output and temporary files
+--exact_n: test only qty_categories as the amount of nodes
 ]]--
 
 require 'io'
@@ -187,7 +188,7 @@ function iterate_N()
 	end
 end
 
-function run_tests(df, fn, qc, te, of)
+function run_tests(df, fn, qc, te, of, en)
 	test_vars = {
 		data_file = df.."/"..fn,
 		file_name = fn,
@@ -211,10 +212,16 @@ function run_tests(df, fn, qc, te, of)
 	file:write("w,dist_cr,rel_thr,kmax,win_thr,ce,time\n")
 	file:close()
 
-	iterate_N()
+	if en == "--exact_n" then
+		params.w = qc
+		iterate_dist_cr()
+	else
+		iterate_N()
+	end
+
 	debug(io.stdout, test_vars, "file_name")
 	debug(io.stdout, test_vars, "min_error")
 end
 
-run_tests(arg[1], arg[2], arg[3], arg[4], arg[5])
+run_tests(arg[1], arg[2], arg[3], arg[4], arg[5], arg[6])
 
