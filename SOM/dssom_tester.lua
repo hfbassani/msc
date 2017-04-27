@@ -108,8 +108,11 @@ function eval_score()
 	local t1 = os.time()
 	write_result_file(test_vars.tmp1, clusters)
 
-	--TODO: create a different python script just for this
-	local error = os.execute("python ../cluster_functions.py "..(test_vars.data_file).." "..test_vars.tmp1.." "..(test_vars.qty_categories).." > "..test_vars.tmp2)
+	local error = os.execute("python ../subspace_clustering_error.py "
+		..test_vars.data_file
+		.." "..test_vars.tmp1
+		.." "..test_vars.qty_categories
+		.." > "..test_vars.tmp2)
 	assert(error ~= nil)
 	local file = assert(io.open(test_vars.tmp2, "r"))
 	local ce = tonumber(file:read())
@@ -209,6 +212,8 @@ function run_tests(df, fn, qc, te, of)
 	file:close()
 
 	iterate_N()
+	debug(io.stdout, test_vars, "file_name")
+	debug(io.stdout, test_vars, "min_error")
 end
 
 run_tests(arg[1], arg[2], arg[3], arg[4], arg[5])

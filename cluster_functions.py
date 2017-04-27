@@ -296,13 +296,13 @@ def multilabelresults2clustering_error(data_file, results_file, qty_categories):
 
 
 
-if __name__ == '__main__':
+#if __name__ == '__main__':
     
-    import sys
-    data_file = sys.argv[1]
-    results_file = sys.argv[2]
-    qty_categories = int(sys.argv[3])
+    #import sys
+    #data_file = sys.argv[1]
+    #results_file = sys.argv[2]
+    #qty_categories = int(sys.argv[3])
     
-    ce, outconf = multilabelresults2clustering_error(data_file, results_file, qty_categories)
-    print ce
+    #ce, outconf = multilabelresults2clustering_error(data_file, results_file, qty_categories)
+    #print ce
 
