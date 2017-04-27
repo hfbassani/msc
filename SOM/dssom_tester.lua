@@ -1,7 +1,10 @@
+--TODO: add number of nodes as parameter
 --[[
-usage: som_tester data_file qty_categories
-data_file: input file name
-qty_categories: number of categories
+usage: luajit dssom_tester.lua arff_file qty_categories target_error output_folder
+arff_file: input arff file path
+qty_categories: amount of real clusters
+target_error: clustering error value you want to achieve
+output_folder: folder for output and temporary files
 ]]--
 
 require 'io'
@@ -54,10 +57,17 @@ function read_arff_file(path)
 	return rows
 end
 
+function debug(f, tab, key)
+	f:write(key, " = ", tab[key], "\n")
+end
+
+test_vars, params = {}, {}
+
 --results file without cluster descriptions
-function write_result_file(path, clusters, params)
+function write_result_file(path, clusters)
 	local dn = table.getn(clusters)
 	local any_pat = false
+
 	local file = assert(io.open(path, "w"))
 	file:write(params.w, " ", params.dim, "\n")
 	for i = 1, dn do
@@ -76,13 +86,7 @@ function write_result_file(path, clusters, params)
 	file:close()
 end
 
-function debug(f, tab, key)
-	f:write(key, " = ", tab[key], "\n")
-end
-
-test_vars = {}
-
-function write_status(params, path)
+function write_status(path)
 	local file = assert(io.open(path, "w"))
 	debug(file, test_vars, "min_error")
 	debug(file, params, "w")
@@ -93,25 +97,23 @@ function write_status(params, path)
 	file:close()
 end
 
-function target_achieved()
-	return test_vars.min_error <= test_vars.target_error
-end
-
-function eval_score(params)
-	write_status(params, test_vars.temp_file.."/params")
-	local tmp1, tmp2 = test_vars.temp_file.."/tmp", test_vars.temp_file.."/tmp2"
+function eval_score()
+	write_status(test_vars.output_folder.."/params")
+	local tmp1, tmp2 = test_vars.output_folder.."/tmp", test_vars.output_folder.."/tmp2"
 
 	local dssom = DSSOM:new(params)
 	local clusters = dssom:get_clusters(test_vars.data)
-	write_result_file(tmp1, clusters, params)
+	write_result_file(tmp1, clusters)
 
+	--TODO: create a python script just for this
 	local error = os.execute("python ../cluster_functions.py "..(test_vars.data_file).." "..tmp1.." "..(test_vars.qty_categories).." > "..tmp2)
 	assert(error ~= nil)
 	local file = assert(io.open(tmp2, "r"))
 	local ce = tonumber(file:read())
 	file:close()
 
-	if test_vars.min_error > ce then
+	--TODO: store every configuration and result
+	if ce < test_vars.min_error then
 		test_vars.min_error = ce
 		test_vars.best_params = {
 			n = params.w,
@@ -123,71 +125,75 @@ function eval_score(params)
 	end
 end
 
-function iterate_win_thr(params)
+function target_achieved()
+	return test_vars.min_error <= test_vars.target_error
+end
+
+function iterate_win_thr()
 	local win_thr = 0
 	for i = 1, 2 do
 		params.win_thr = win_thr
-		eval_score(params)
+		eval_score()
 		if target_achieved() then return end
 		win_thr = win_thr + 0.985
 	end
 end
 
-function iterate_kmax(params)
+function iterate_kmax()
 	local kmax = 1
 	for i = 1, 2 do
 		params.kmax = kmax
-		iterate_win_thr(params)
+		iterate_win_thr()
 		if target_achieved() then return end
 		kmax = kmax + 1
 	end
 end
 
-function iterate_rel_thr(params)
+function iterate_rel_thr()
 	local rel_thr = 0.85
 	for i = 1, 3 do
 		params.rel_thr = rel_thr
-		iterate_kmax(params)
+		iterate_kmax()
 		if target_achieved() then return end
 		rel_thr = rel_thr + 0.05
 	end
 end
 
-function iterate_dist_cr(params)
+function iterate_dist_cr()
 	local dist_cr = 0.025
 	for i = 1, 3 do
 		params.dist_cr = dist_cr
-		iterate_rel_thr(params)
+		iterate_rel_thr()
 		if target_achieved() then return end
 		dist_cr = dist_cr * 2
 	end
 end
 
-function iterate_N(params)
+function iterate_N()
 	local n = 8
-	for i = 1, 4 do--should be 6
+	for i = 1, 6 do
 		params.w = n
-		iterate_dist_cr(params)
+		iterate_dist_cr()
 		if target_achieved() then return end
 		n = n * 2
 	end
 end
 
-function run_tests(df, qc, te, tf)
+function run_tests(df, qc, te, of)
 	test_vars = {
 		data_file = df,
 		qty_categories = qc,
 		target_error = tonumber(te),
-		temp_file = tf,
+		output_folder = of,
 		data = read_arff_file(df),
 		min_error = 1e20
 	}
 
-	local params = {
+	params = {
 		dim = table.getn(test_vars.data[1]),
 		h = 1
 	}
-	iterate_N(params)
+	iterate_N()
 
 	debug(io.stdout, test_vars, "data_file")
 	debug(io.stdout, test_vars, "min_error")

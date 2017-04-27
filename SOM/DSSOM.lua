@@ -1,17 +1,12 @@
 require 'math'
 require 'torch'
 
-eps = 1e-9
-
-function square_norm(dx, dy)
-	return math.sqrt(dx*dx + dy*dy)
-end
-
 DSSOM = {}
 DSSOM.__index = DSSOM
 
 function DSSOM:new(params)
 	o = {
+		eps = 1e-9,
 		map_h = params.h,
 		map_w = params.w,
 
@@ -36,16 +31,20 @@ function DSSOM:new(params)
 	return o
 end
 
-function key(i, j)
+function DSSOM:square_norm(dx, dy)
+	return math.sqrt(dx*dx + dy*dy)
+end
+
+function DSSOM:key(i, j)
 	return i..","..j
 end
 
 function DSSOM:addWinner(bi, bj)
-	self.winners[key(bi, bj)] = true
+	self.winners[self:key(bi, bj)] = true
 end
 
 function DSSOM:hasWinner(bi, bj)
-	return self.winners[key(bi, bj)]
+	return self.winners[self:key(bi, bj)]
 end
 
 function DSSOM:calculate_activation(pattern, global_rel)
@@ -58,7 +57,7 @@ function DSSOM:calculate_activation(pattern, global_rel)
 				local dist = torch.norm(dif)
 				local sum = torch.sum(rel)
 
-				local activ = sum/(dist + sum + eps)
+				local activ = sum/(dist + sum + self.eps)
 				if activ > max_a then
 					bi, bj, max_a = i, j, activ
 				end
@@ -80,7 +79,7 @@ function DSSOM:calc_neigh_table()
 			if denom < 1e-30 then
 				self.neigh_table[i][j] = 0
 			else
-				self.neigh_table[i][j] = math.exp(-square_norm(mid-i, mid-j)/denom)
+				self.neigh_table[i][j] = math.exp(-self:square_norm(mid-i, mid-j)/denom)
 			end
 		end
 	end

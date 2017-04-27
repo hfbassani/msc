@@ -32,10 +32,10 @@ def read_arff(filename, sep):
     string = f.readline()
 
     while string[:5] != '@data':
-
         string = f.readline()
 
     data = [line.split(sep) for line in f]
+    f.close()
 
     for i in range(len(data)):
 

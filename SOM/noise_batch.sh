@@ -1,8 +1,8 @@
 #!/bin/bash
 TYPE="noise";
 mkdir "$TYPE";
-#echo "10" > "$TYPE/status";
-#luajit som_tester.lua ../../dbs/noise/N10.arff 10 0.25 "$TYPE";
+echo "10" > "$TYPE/status";
+luajit som_tester.lua ../../dbs/noise/N10.arff 10 0.25 "$TYPE";
 echo "30" > "$TYPE/status";
 luajit som_tester.lua ../../dbs/noise/N30.arff 10 0.25 "$TYPE";
 echo "50" > "$TYPE/status";
