@@ -20,8 +20,7 @@ import read_arff
 
 def combine(arff, true, out):
 	data = read_arff.read_arff(arff, ',')
-	r = data.shape[0]
-	d = data.shape[1]-1
+	r, d = data.shape[0], data.shape[1]-1
 	masks = [0 for i in range(r)]
 
 	truefile = open(true, 'r')
