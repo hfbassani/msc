@@ -9,6 +9,7 @@ comparar com a implementacao original
 
 conferir
 atribuicoes, o que pode tar sendo alterado sem querer em todas as operacoes
+maxcomp relativo ao dataset size
 
 melhoras
 atualizar vizinhanca de um jeito melhor
@@ -32,9 +33,9 @@ function LARFDSSOM:new(params)
 		en = params.en,
 		beta = params.beta,
 		slope = params.slope,
-		conn_thr = params.conn_thr
+		conn_thr = params.conn_thr,
 
-		projected = params.projected or false,
+		projected = params.projected or false
 	}
 	setmetatable(o, self)
 	return o
