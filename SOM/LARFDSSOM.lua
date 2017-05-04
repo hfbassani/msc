@@ -32,9 +32,9 @@ function LARFDSSOM:new(params)
 		en = params.en,
 		beta = params.beta,
 		slope = params.slope,
+		conn_thr = params.conn_thr
 
 		projected = params.projected or false,
-		conn_thr = 0.5
 	}
 	setmetatable(o, self)
 	return o

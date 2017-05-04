@@ -3,10 +3,10 @@ require 'torch'
 
 DSSOM = {}
 DSSOM.__index = DSSOM
+DSSOM.eps = 1e-9
 
 function DSSOM:new(params)
 	o = {
-		eps = 1e-9,
 		map_h = params.h,
 		map_w = params.w,
 
@@ -52,6 +52,7 @@ function DSSOM:calculate_activation(pattern, global_rel)
 	for i = 1, self.map_h do
 		for j = 1, self.map_w do
 			if not self:hasWinner(i, j) then
+				--TODO: rever se isso aqui ta certo
 				local rel = (global_rel ~= nil) and global_rel or self.relevance[i][j]
 				local dif = torch.cmul(pattern - self.proto[i][j], rel)
 				local dist = torch.norm(dif)
