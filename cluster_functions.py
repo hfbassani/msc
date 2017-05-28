@@ -235,6 +235,8 @@ def multilabelresults2clustering_error(data_file, results_file, qty_categories):
         # section with only two columns
         if len(line_split) == 2:
             data_n_winner.append(line.split()) 
+    if len(data_n_winner) == 0:
+    	data_n_winner.append([0, 0])
 
     data_n_winner = np.asarray(data_n_winner, dtype=np.int)
     found_clusters_list = list(set(data_n_winner[:, -1]))

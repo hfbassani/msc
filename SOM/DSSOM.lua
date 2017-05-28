@@ -193,7 +193,7 @@ function DSSOM:classify(pattern)
 		end
 
 		self:addWinner(bi, bj)
-		table.insert(clusters, { bi, bj })
+		table.insert(clusters, self.map_w*(bi-1) + bj )
 		global_rel:cmul(torch.ones(self.dim) - self.relevance[bi][bj])
 		k = k+1
 	end

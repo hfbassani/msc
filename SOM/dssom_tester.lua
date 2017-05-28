@@ -11,82 +11,14 @@ output_folder: folder for output and temporary files
 
 require 'io'
 
+require 'data_file_helper'
 require 'DSSOM'
-
---custom arff file to work with the python scripts
-function read_arff_file(path)
-	local rows = {}
-
-	local capture = "([^,]+)"
-	local file = assert(io.open(path, "r"))
-	for line in file:lines() do
-		if line ~= "" and line ~= "@data" then
-			local row = {}
-			for value in line:gmatch(capture) do
-				table.insert(row, value)
-			end
-			--remove class column
-			table.remove(row)
-			table.insert(rows, row)
-		end
-	end
-	file:close()
-
-	--maximum and minimum for every attribute
-	local min, max = {}, {}
-	local rn, dn = table.getn(rows), table.getn(rows[1])
-	for i = 1, dn do
-		min[i] = math.huge
-		max[i] = -math.huge
-	end
-	for i = 1, rn do
-		for j = 1, dn do
-			local v = rows[i][j]
-			min[j] = math.min(min[j], v)
-			max[j] = math.max(max[j], v)
-		end
-	end
-
-	--normalize
-	for i = 1, rn do
-		for j = 1, dn do
-			local v = rows[i][j]
-			local rng = max[j]-min[j]
-			rows[i][j] = (rng > 1e-12) and ((v-min[j])/rng) or 0
-		end
-	end
-
-	return rows
-end
 
 function debug(f, tab, key)
 	f:write(key, " = ", tab[key], "\n")
 end
 
 test_vars, params = {}, {}
-
---results file without cluster descriptions
-function write_result_file(path, clusters)
-	local dn = table.getn(clusters)
-	local any_pat = false
-
-	local file = assert(io.open(path, "w"))
-	file:write(params.w, " ", params.dim, "\n")
-	for i = 1, dn do
-		local cl = clusters[i]
-		local cn = table.getn(cl)
-		for j = 1, cn do
-			file:write(i-1, " ", cl[j][2]-1, "\n")
-			any_pat = true
-		end
-	end
-
-	--rare case when there is no pattern-cluster pair at all, we must write at least one
-	if not any_pat then
-		file:write("0 0\n")
-	end
-	file:close()
-end
 
 function write_status()
 	local file = assert(io.open(test_vars.status_file, "w"))
@@ -107,7 +39,7 @@ function eval_score()
 	local dssom = DSSOM:new(params)
 	local clusters = dssom:get_clusters(test_vars.data)
 	local t1 = os.time()
-	write_result_file(test_vars.tmp1, clusters)
+	write_result_file(test_vars.tmp1, clusters, params.w, params.dim)
 
 	local error = os.execute("python ../subspace_clustering_error.py "
 		..test_vars.data_file
@@ -201,7 +133,7 @@ function run_tests(df, fn, qc, te, of, en)
 		tmp1 = of.."/tmp",
 		tmp2 = of.."/tmp2"
 	}
-	test_vars.data = read_arff_file(test_vars.data_file)
+	test_vars.data = read_arff_data(test_vars.data_file, true)
 
 	params = {
 		dim = table.getn(test_vars.data[1]),

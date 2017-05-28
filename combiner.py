@@ -1,28 +1,50 @@
 """
-combines normal .arff and .true files to the weird .arff pattern used in this repository
+combines normal .arff and .true files into a normalized .arff file with class labels bitmask
 
 .arff
 ?*[@bla bla bla]
 @data
-rows*[dim*[attr] class_id]
+rows*[dim*[attr,] class_id]
 
 .true
 bla bla bla
-clusters*[dim*[0|1] k k*[pattern id]]
+clusters*[dim*[0|1] k k*[pattern_id]]
 
 output .arff
 @data
-rows*[dim*[attr] dec(bin_classes)]
+rows*[dim*[attr,] dec(bin_classes)]
 """
 
-import sys
+import numpy as np
 import read_arff
+import sys
+
+def normalize(orig_data):
+	data = np.copy(orig_data)
+	n, d = data.shape[0], data.shape[1]-1
+	maxi = [max([data[i, j] for i in range(n)])
+			for j in range(d)]
+	mini = [min([data[i, j] for i in range(n)])
+			for j in range(d)]
+
+	for j in range(d):
+		rng = maxi[j]-mini[j]
+		if rng < 1e-12:
+			for i in range(n):
+				data[i, j] = 0
+		else:
+			for i in range(n):
+				data[i, j] = (data[i, j] - mini[j])/rng
+	return data
 
 def combine(arff, true, out):
+	# .arff file
 	data = read_arff.read_arff(arff, ',')
+	data = normalize(data)
 	r, d = data.shape[0], data.shape[1]-1
-	masks = [0 for i in range(r)]
 
+	# .true file
+	masks = [0 for i in range(r)]
 	truefile = open(true, 'r')
 	truefile.readline()
 	for line in truefile:
@@ -38,6 +60,7 @@ def combine(arff, true, out):
 			masks[int(pid)] |= 1
 	truefile.close()
 
+	# output file
 	outfile = open(out, 'w')
 	outfile.write('@data\n')
 	for i in range(r):
