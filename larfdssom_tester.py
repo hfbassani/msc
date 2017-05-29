@@ -1,98 +1,84 @@
+import csv
+import math
 import os
-import random
 import string
 import sys
 import time
 
-import my_lhs
 from cluster_functions import multilabelresults2clustering_error
 
-"""
-import statistics
+def sq(x):
+	return x*x
 
-def measure_time(script):
-	times, turns = [], 30
-	for i in range(turns):
+def run(script, n):
+	times = [0]*n
+	for i in range(n):
 		t0 = time.time()
 		os.system(script)
 		t1 = time.time()
-		#stdout.write(str(t1-t0) + '\n')
-		times.append(t1-t0)
-
-	avg = statistics.mean(times)
-	return avg, statistics.stdev(times, avg)
-"""
-
-def run(script, n_exec):
-	tsum = 0
-	for _ in range(n_exec):
-		t0 = time.time()
-		os.system(script)
-		t1 = time.time()
-		tsum += (t1-t0)
-	return tsum/n_exec
+		times[i] = (t1-t0)
+	avg = sum(times)/n
+	stdev = sum([sq(t-avg) for t in times])/max(1, n-1)
+	return avg, stdev
 
 def eval_error(input_file, qt_cat):
 	ce, outconf = multilabelresults2clustering_error(input_file, input_file+'.results', qt_cat)
 	return ce
 
-def run_tests(program, s, n_exec, output_folder, input_file, qt_cat):
-	ranges = [
-		[0.7, 0.999, 'v'],#at
-		[0.001, 0.1, 'l'],#lp
-		[0.001, 0.1, 's'],#beta
-		[1.0, 100.0, 'i'],#maxcomp
-		[0.001, 0.1, 'e'],#eb
-		[0.0001, 0.5, 'g'],#en/eb
-		[0.01, 0.1, 'p'],#s
-		[0, 0.5, 'w']#c
-	]
-	rn = len(ranges)
-	params = my_lhs.lhs(ranges, s)
-	# adjust neighbor learning rate
-	for i in range(s):
-		params[i][5] *= params[i][4]
+flags = [
+	'v',#at
+	'l',#lp
+	's',#beta
+	'i',#maxcomp
+	'e',#eb
+	'g',#en/eb
+	'p',#s
+	'w'#c
+]
+rn = len(flags)
+
+def build_script(program, input_file, params):
+	script = program + ' -f ' + input_file + ' -r 12345 -m 70 -n 1000'
+	for j in range(rn):
+		script += ' -' + flags[j] + ' ' + params[j]
+	return script + ' > /dev/null'
+
+def run_tests(program, n_exec, output_folder, input_file, qt_cat, params_path):
+	params = []
+	with open(params_path, 'r') as params_file:
+		reader = csv.reader(params_file, delimiter=',')
+		params = [row for row in reader]
+	s = len(params)
 
 	slash_idx = string.rfind(input_file, '/')
-	output = open(output_folder + input_file[slash_idx:], 'w')
-	output.write('#' + str(s) + ' ' + input_file + '\n')
+	output_path = output_folder + input_file[slash_idx:]
+	with open(output_path, 'w') as output:
+		output.write('#' + input_file + '\n')
 
-	avg_time = 0
-	for i in range(s):
-		# build script
-		script = program + ' -f ' + input_file + ' -r 12345 -m 70 -n 1000'
-		for j in range(rn):
-			v = params[i][j]
-			script += ' -' + str(ranges[j][2]) + ' ' + str(v)
-			output.write(str(v) + ',')
-		script += ' > /dev/null'
+		sum_time = 0
+		for i in range(s):
+			for j in range(rn):
+				output.write(params[i][j] + ',')
 
-		# execute
-		run_time = run(script, n_exec)
-		avg_time += run_time
-		ce = eval_error(input_file, qt_cat)
-		output.write(str(run_time) + ',' + str(ce) + '\n')
+			# execute
+			script = build_script(program, input_file, params[i])
+			avg, stdev = run(script, n_exec)
+			ce = eval_error(input_file, qt_cat)
+			sum_time += avg
+			output.write(str(ce) + ',' + str(avg) + ',' + str(stdev) + '\n')
 
-	# finish
-	output.write('#' + str(avg_time/s) + '\n')
-	output.close()
+		# finish
+		output.write('#' + str(sum_time/s) + '\n')
 
 def test_files(files):
 	# program to execute
 	program = sys.argv[1]
-	# number of samples of lhs
-	s = int(sys.argv[2])
-	# amount of executions
-	n_exec = int(sys.argv[3])
+	# amount of executions to measure time
+	n_exec = int(sys.argv[2])
 	# output folder
-	output_folder = sys.argv[4]
-	# input file
-	#input_file = sys.argv[3]
-	# amount of real clusters
-	#qt_cat = sys.argv[4]
+	output_folder = sys.argv[3]
 
 	os.system("mkdir " + output_folder)
-	random.seed(12345)
 	for f in files:
-		run_tests(program, s, n_exec, output_folder, f[0], f[1])
+		run_tests(program, n_exec, output_folder, f[0], f[1], f[2])
 
