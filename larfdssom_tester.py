@@ -7,8 +7,10 @@ import time
 
 from cluster_functions import multilabelresults2clustering_error
 
-def sq(x):
-	return x*x
+def distr(a, n):
+	avg = sum(a)/n
+	var = sum([(v-avg)**2 for v in a])/max(1, n-1)
+	return avg, var
 
 def run(script, n):
 	times = [0]*n
@@ -17,9 +19,7 @@ def run(script, n):
 		os.system(script)
 		t1 = time.time()
 		times[i] = (t1-t0)
-	avg = sum(times)/n
-	stdev = sum([sq(t-avg) for t in times])/max(1, n-1)
-	return avg, stdev
+	return distr(times, n)
 
 def eval_error(input_file, qt_cat):
 	ce, outconf = multilabelresults2clustering_error(input_file, input_file+'.results', qt_cat)
@@ -43,6 +43,7 @@ def build_script(program, input_file, params):
 		script += ' -' + flags[j] + ' ' + params[j]
 	return script + ' > /dev/null'
 
+#[params,]ce,avg_time,var_time
 def run_tests(program, n_exec, output_folder, input_file, qt_cat, params_path):
 	params = []
 	with open(params_path, 'r') as params_file:
@@ -62,13 +63,13 @@ def run_tests(program, n_exec, output_folder, input_file, qt_cat, params_path):
 
 			# execute
 			script = build_script(program, input_file, params[i])
-			avg, stdev = run(script, n_exec)
+			avg, var = run(script, n_exec)
 			ce = eval_error(input_file, qt_cat)
 			sum_time += avg
-			output.write(str(ce) + ',' + str(avg) + ',' + str(stdev) + '\n')
+			output.write(str(ce) + ',' + str(avg) + ',' + str(var) + '\n')
 
 		# finish
-		output.write('#' + str(sum_time/s) + '\n')
+		output.write('#avg total time: ' + str(sum_time/s) + '\n')
 
 def test_files(files):
 	# program to execute
