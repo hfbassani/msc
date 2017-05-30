@@ -44,30 +44,26 @@ def combine(arff, true, out):
 	r, d = data.shape[0], data.shape[1]-1
 
 	# .true file
-	masks = [0 for i in range(r)]
-	truefile = open(true, 'r')
-	truefile.readline()
-	for line in truefile:
-		# update current masks
-		for i in range(r):
-			masks[i] <<= 1
+	masks = [0]*r
+	with open(true, 'r') as truefile:
+		truefile.readline()
+		for line in truefile:
+			# update current masks
+			for i in range(r):
+				masks[i] <<= 1
 
-		values = line.split(' ')
-		k = int(values[d])
-		for i in range(k):
-			# sets the new bit for every pattern in this cluster
-			pid = values[d+1+i]
-			masks[int(pid)] |= 1
-	truefile.close()
+			values = line.split(' ')
+			for pid in values[d+1:]:
+				# sets the new bit for every pattern in this cluster
+				masks[int(pid)] |= 1
 
 	# output file
-	outfile = open(out, 'w')
-	outfile.write('@data\n')
-	for i in range(r):
-		for j in range(d):
-			outfile.write(str(data[i][j]) + ',')
-		outfile.write(str(masks[i])+'\n')
-	outfile.close()
+	with open(out, 'w') as outfile:
+		outfile.write('@data\n')
+		for i in range(r):
+			for j in range(d):
+				outfile.write(str(data[i][j]) + ',')
+			outfile.write(str(masks[i]) + '\n')
 
 if __name__ == '__main__':
 	# input files folder
