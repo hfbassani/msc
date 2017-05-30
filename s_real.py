@@ -8,7 +8,8 @@ if __name__ == '__main__':
 		["../dbs/real_world_data/liver.arff", 2, '../lhs_500'],
 		["../dbs/real_world_data/pendigits.arff", 10, '../lhs_500'],
 		["../dbs/real_world_data/shape.arff", 9, '../lhs_500'],
-		["../dbs/real_world_data/vowel.arff", 11, '../lhs_500']
+		["../dbs/real_world_data/vowel.arff", 11, '../lhs_500'],
+		["../dbs/synth_dbsizescale/S5500.arff", 10, '../lhs_500']
 	]
 	run_files(files)
 
