@@ -5,6 +5,7 @@ require 'torch'
 --[[
 melhoras
 como atualizar relevances?
+testar localidade da cache guardando os dados de um neuronio juntos
 ]]--
 
 LARFDSSOM = {}

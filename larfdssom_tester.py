@@ -77,6 +77,9 @@ def run_tests(program, n_exec, output_folder, input_file, qt_cat, params_path):
 			#output.write(str(ce) + ',' + str(avg) + ',' + str(var) + '\n')
 			output.write(params[i][8] + ',' + str(ce) + ',' + str(avg) + '\n')
 
+			output.flush()
+			os.fsync(output.fileno())
+
 		# finish
 		output.write('#avg total time: ' + str(sum_time/s) + '\n')
 
