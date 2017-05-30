@@ -1,4 +1,3 @@
-import csv
 import math
 import os
 import string
@@ -6,6 +5,15 @@ import sys
 import time
 
 from cluster_functions import multilabelresults2clustering_error
+
+def read_data(filename):
+	with open(filename, 'r') as f:
+		data = [line.split(',')
+			for line in f
+			if (line != '' and line[:1] != '#' and line[:1] != '\n')]
+		for i in range(len(data)):
+			data[i][-1] = data[i][-1].strip()
+		return data
 
 def distr(a, n):
 	avg = sum(a)/n
@@ -45,40 +53,47 @@ def build_script(program, input_file, params):
 
 #[params,]ce,avg_time,var_time
 def run_tests(program, n_exec, output_folder, input_file, qt_cat, params_path):
-	params = []
-	with open(params_path, 'r') as params_file:
-		reader = csv.reader(params_file, delimiter=',')
-		params = [row for row in reader]
+	params = read_data(params_path)
 	s = len(params)
 
 	slash_idx = string.rfind(input_file, '/')
 	output_path = output_folder + input_file[slash_idx:]
 	with open(output_path, 'w') as output:
-		output.write('#' + input_file + '\n')
+		output.write('#' + input_file + ' ' + str(s) + ' configs ' + str(n_exec) + 'x\n')
 
 		sum_time = 0
 		for i in range(s):
-			for j in range(rn):
-				output.write(params[i][j] + ',')
+			#TODO: descomentar
+			#for j in range(rn):
+			# 	output.write(params[i][j] + ',')
 
 			# execute
 			script = build_script(program, input_file, params[i])
 			avg, var = run(script, n_exec)
 			ce = eval_error(input_file, qt_cat)
 			sum_time += avg
-			output.write(str(ce) + ',' + str(avg) + ',' + str(var) + '\n')
+
+			#TODO: ajeitar
+			#output.write(str(ce) + ',' + str(avg) + ',' + str(var) + '\n')
+			output.write(params[i][8] + ',' + str(ce) + ',' + str(avg)'\n')
 
 		# finish
 		output.write('#avg total time: ' + str(sum_time/s) + '\n')
 
 def test_files(files):
+	#TODO: tirar isso
+	files = files[:1] + files[-1:]
+
 	# program to execute
+	#"../larfdssom"
+	#"luajit larfdssom_runner.lua"
 	program = sys.argv[1]
 	# amount of executions to measure time
 	n_exec = int(sys.argv[2])
 	# output folder
 	output_folder = sys.argv[3]
 
+	print(program + ' ' + str(n_exec) + ' ' + output_folder)
 	os.system("mkdir " + output_folder)
 	for f in files:
 		run_tests(program, n_exec, output_folder, f[0], f[1], f[2])
