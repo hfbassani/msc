@@ -3,10 +3,9 @@ require 'torch'
 --require 'cutorch'
 
 --[[
-atualizar as conexoes sempre que insere ou remove um no
-
 melhoras
 como atualizar relevances?
+update_all_connections
 testar localidade da cache guardando os dados de um neuronio juntos
 ]]--
 
@@ -17,7 +16,7 @@ LARFDSSOM.eps = 1e-9
 function LARFDSSOM:new(params)
 	o = {
 		tmax = params.tmax,
-		nmax = params.nmax,
+		_nmax = params.nmax,
 		at = params.at,
 		lp = params.lp,
 		maxcomp = params.maxcomp,
@@ -25,7 +24,7 @@ function LARFDSSOM:new(params)
 		en = params.en,
 		beta = params.beta,
 		slope = params.slope,
-		conn_thr = params.conn_thr,
+		_conn_thr = params.conn_thr,
 
 		projected = params.projected or false
 	}
@@ -44,7 +43,7 @@ function LARFDSSOM:resize(n)
 	self.neighbors = self._neighbors[{{1, n}, {1, n}}]
 end
 
-function LARFDSSOM:allocate_data(dim)
+function LARFDSSOM:allocate_data()
 	--allocate maximum size, but don't necessarily use it all
 	self._protos = torch.Tensor(self.nmax, self.dim)
 	self._distances = torch.Tensor(self.nmax, self.dim)
@@ -64,16 +63,11 @@ function LARFDSSOM:new_node(row, wins)
 	self:update_connections(i)
 end
 
-function LARFDSSOM:reorder(tns, idxs, n)
+--select a subset of the rows of a tensor
+function LARFDSSOM:filter(tns, idxs)
+	local n = idxs:size(1)
 	local tmp = tns:index(1, idxs)
 	tns[{{1, n}}]:copy(tmp)
-end
-
-function LARFDSSOM:reorder_connections(idxs, n)
-	local tmp = self.neighbors:index(1, idxs)
-	self.neighbors[{{1, n}, {}}]:copy(tmp)
-	tmp = self.neighbors:index(2, idxs)
-	self.neighbors[{{}, {1, n}}]:copy(tmp)
 end
 
 function LARFDSSOM:remove_nodes(rounds)
@@ -85,14 +79,12 @@ function LARFDSSOM:remove_nodes(rounds)
 	local n = idxs:size(1)
 	idxs:resize(n)
 
-	self:reorder(self.protos, idxs, n)
-	self:reorder(self.distances, idxs, n)
-	self:reorder(self.relevances, idxs, n)
+	self:filter(self.protos, idxs)
+	self:filter(self.distances, idxs)
+	self:filter(self.relevances, idxs)
 
-	self:reorder_connections(idxs, n)
 	self:resize(n)
-	--self:resize(n)
-	--self:update_all_connections()
+	self:update_all_connections()
 end
 --[[
 function LARFDSSOM:remove_nodes(rounds)
@@ -141,6 +133,10 @@ function LARFDSSOM:update_connections(i)
 end
 ]]--
 
+--[[
+function LARFDSSOM:update_all_connections()
+end
+]]--
 function LARFDSSOM:update_all_connections()
 	for i = 1, self.n do
 		self:update_connections(i)
@@ -335,7 +331,8 @@ function LARFDSSOM:process(raw_data)
 	self.dn = self.data:size(1)
 	self.dim = self.data:size(2)
 
-	self.conn_thr = self.conn_thr*math.sqrt(self.dim)
+	self.conn_thr = self._conn_thr*math.sqrt(self.dim)
+	self.nmax = self._nmax
 	self:allocate_data()
 
 	--organization
