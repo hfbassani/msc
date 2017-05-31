@@ -1,4 +1,5 @@
 require 'io'
+require 'math'
 
 --custom arff file with class labels bitmask
 function read_arff_data(path, normalized)
@@ -20,12 +21,12 @@ function read_arff_data(path, normalized)
 	file:close()
 
 	if not normalized then
-		local rn, dn = table.getn(rows), table.getn(rows[1])
+		local dn, dim = table.getn(rows), table.getn(rows[1])
 		--for every attribute
-		for j = 1, dn do
+		for j = 1, dim do
 			--minimum and maximum
 			min, max = math.huge, -math.huge
-			for i = 1, rn do
+			for i = 1, dn do
 				local v = rows[i][j]
 				min = math.min(min, v)
 				max = math.max(max, v)
@@ -34,12 +35,12 @@ function read_arff_data(path, normalized)
 			--normalize
 			local rng = max-min
 			if rng > 1e-12 then
-				for i = 1, rn do
+				for i = 1, dn do
 					local v = rows[i][j]
 					rows[i][j] = (v-min)/rng
 				end
 			else
-				for i = 1, rn do
+				for i = 1, dn do
 					rows[i][j] = 0
 				end
 			end
@@ -50,17 +51,16 @@ function read_arff_data(path, normalized)
 end
 
 --results file without cluster descriptions
-function write_result_file(path, clusters, cn, dim)
+function write_results_file(path, clusters, cn, dim)
 	local file = assert(io.open(path, "w"))
 	file:write(cn, " ", dim, "\n")
 
 	local any_pat = false
 	local dn = table.getn(clusters)
 	for i = 1, dn do
-		local cl = clusters[i]
-		local cn = table.getn(cl)
-		for j = 1, cn do
-			file:write(i-1, " ", cl[j]-1, "\n")
+		local q = table.getn(clusters[i])
+		for j = 1, q do
+			file:write(i-1, " ", clusters[i][j]-1, "\n")
 			any_pat = true
 		end
 	end

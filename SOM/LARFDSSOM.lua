@@ -3,6 +3,8 @@ require 'torch'
 --require 'cutorch'
 
 --[[
+atualizar as conexoes sempre que insere ou remove um no
+
 melhoras
 como atualizar relevances?
 testar localidade da cache guardando os dados de um neuronio juntos
@@ -313,7 +315,7 @@ function LARFDSSOM:convergence()
 end
 ]]--
 
-function LARFDSSOM:classify(pattern)
+function LARFDSSOM:get_clusters(pattern)
 	local as, s, act = self:calculate_activation(pattern)
 	if as < self.at then--outlier
 		return {}
@@ -328,11 +330,11 @@ function LARFDSSOM:classify(pattern)
 	end
 end
 
-function LARFDSSOM:get_clusters(raw_data)
+function LARFDSSOM:process(raw_data)
 	self.data = torch.Tensor(raw_data)
 	self.dn = self.data:size(1)
-
 	self.dim = self.data:size(2)
+
 	self.conn_thr = self.conn_thr*math.sqrt(self.dim)
 	self:allocate_data()
 
@@ -346,9 +348,10 @@ function LARFDSSOM:get_clusters(raw_data)
 	--convergence
 	self:convergence()
 
+	--clustering
 	local clusters = {}
 	for i = 1, self.dn do
-		table.insert(clusters, self:classify(self.data[i]))
+		table.insert(clusters, self:get_clusters(self.data[i]))
 	end
 	return clusters
 end

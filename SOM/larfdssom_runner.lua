@@ -3,6 +3,7 @@
 
 require 'io'
 require 'math'
+require 'torch'
 
 require 'data_file_helper'
 require 'LARFDSSOM'
@@ -68,17 +69,17 @@ end
 output_file = input_file..'.results'
 torch.manualSeed(seed)
 
---read data (no need to normalize)
+--read data (don't need to normalize)
 data = read_arff_data(input_file, true)
-rn, dim = table.getn(data), table.getn(data[1])
-params.maxcomp = math.floor(params.maxcomp * rn + 0.5)
-params.tmax = params.tmax * rn
+dn, dim = table.getn(data), table.getn(data[1])
+params.maxcomp = math.floor(params.maxcomp * dn + 0.5)
+params.tmax = params.tmax * dn
 
 --run algorithm
 larfdssom = LARFDSSOM:new(params)
-clusters = larfdssom:get_clusters(data)
+clusters = larfdssom:process(data)
 cn = larfdssom.n
 
---save result
-write_result_file(output_file, clusters, cn, dim)
+--save results
+write_results_file(output_file, clusters, cn, dim)
 
