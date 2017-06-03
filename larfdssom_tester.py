@@ -24,7 +24,7 @@ def distr(a):
 
 def eval_error(input_file, qt_cat):
 	ce, outconf = multilabelresults2clustering_error(input_file, input_file+'.results', qt_cat)
-	return ce
+	return 1.0 - ce
 
 flags = [
 	'v',#at
