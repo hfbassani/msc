@@ -9,6 +9,8 @@ update_all_connections
 testar localidade da cache guardando os dados de um neuronio juntos
 ]]--
 
+torch.setdefaulttensortype('torch.FloatTensor')
+
 LARFDSSOM = {}
 LARFDSSOM.__index = LARFDSSOM
 LARFDSSOM.eps = 1e-9
@@ -182,7 +184,7 @@ end
 ]]--
 
 function LARFDSSOM:get_learning_rates(s)
-	local lr = self.neighbors[s]:type('torch.DoubleTensor')
+	local lr = self.neighbors[s]:type('torch.FloatTensor')
 	lr:apply(function(x) return x*self.en end)
 	lr[s] = self.eb
 	return lr

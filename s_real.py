@@ -2,14 +2,25 @@ from larfdssom_tester import run_files
 
 if __name__ == '__main__':
 	files = [
-		["../dbs/real_world_data/breast.arff", 2, '../lhs_500'],
-		["../dbs/real_world_data/diabetes.arff", 2, '../lhs_500'],
-		["../dbs/real_world_data/glass.arff", 6, '../lhs_500'],
-		["../dbs/real_world_data/liver.arff", 2, '../lhs_500'],
-		["../dbs/real_world_data/pendigits.arff", 10, '../lhs_500'],
-		["../dbs/real_world_data/shape.arff", 9, '../lhs_500'],
-		["../dbs/real_world_data/vowel.arff", 11, '../lhs_500'],
-		["../dbs/synth_dbsizescale/S5500.arff", 10, '../lhs_500']
+		['breast', 2],
+		['diabetes', 2],
+		['glass', 6],
+		['liver', 2],
+		['pendigits', 10],
+		['shape', 9],
+		['vowel', 11]
 	]
+	input_folder = '../dbs/real_world_data/'
+	params_folder = '../orig_lhs_500_5x/best_params/'
+	files = [
+			[input_folder + f[0] + '.arff',
+			f[1],
+			params_folder + f[0] + '.arff']
+			for f in files]
+	files.append(
+			['../dbs/synth_dbsizescale/S5500.arff',
+			10,
+			params_folder + 'S5500.arff'])
+
 	run_files(files)
 
