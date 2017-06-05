@@ -219,6 +219,59 @@ function LARFDSSOM:interp(a, b, r)
 	return (a*(1-r)) + (b*r)
 end
 
+function LARFDSSOM:update_relevances(distances, relevances)
+	local mx = distances:max(2)
+	local mn = distances:min(2)
+	mx, mn = mx:squeeze(2), mn:squeeze(2)
+	local rng = mx-mn
+
+	local idx1 = rng:lt(self.eps):nonzero()
+	if idx1:nElement() > 0 then
+		idx1 = idx1:squeeze(2)
+		relevances:indexFill(1, idx1, 1)
+	end
+
+	local idx2 = rng:ge(self.eps):nonzero()
+	if idx2:nElement() > 0 then
+		idx2 = idx2:squeeze(2)
+		local nn = idx2:size(1)
+		distances = distances:index(1, idx2)
+		rng = rng:index(1, idx2)
+		rng = rng:view(nn, 1):expand(nn, self.dim)
+
+		local mean = distances:mean(2):expand(nn, self.dim)
+		local rel = distances - mean
+		rel:cdiv(rng * self.slope)
+		rel:exp()
+		rel:add(1)
+		rel:cinv()
+		relevances:indexCopy(1, idx2, rel)
+	end
+end
+--[[
+function LARFDSSOM:update_relevances(distances, relevances)
+	local nn = relevances:size(1)
+	local mean = distances:mean(2):squeeze(2)
+	local mx = distances:max(2)
+	local mn = distances:min(2)
+	mx, mn = mx:squeeze(2), mn:squeeze(2)
+	local rng = mx-mn
+
+	for i = 1, nn do
+		local rel = relevances[i]
+		if rng[i] < self.eps then rel:fill(1)
+		else
+			rel = distances[i] - mean[i]--opposit of article
+			rel:div(self.slope * rng[i])
+			rel:exp()
+			rel:add(1)
+			rel:cinv()
+			relevances[i]:copy(rel)
+		end
+	end
+end
+]]--
+
 function LARFDSSOM:update_winner(pattern, s)
 	local idx, lr, nn = self:get_neighborhood(s)
 	local neigh_distances = self.distances:index(1, idx)
@@ -232,22 +285,7 @@ function LARFDSSOM:update_winner(pattern, s)
 	local dif = torch.abs(pattern - neigh_protos)
 	neigh_distances = self:interp_many(neigh_distances, dif, lr*self.beta)
 
-	local mean = neigh_distances:mean(2):squeeze(2)
-	local mx = neigh_distances:max(2)
-	local mn = neigh_distances:min(2)
-	mx, mn = mx:squeeze(2), mn:squeeze(2)
-	local rng = mx-mn
-
-	for i = 1, nn do
-		local rel = neigh_relevances[i]
-		if rng[i] < self.eps then rel:fill(1)
-		else
-			rel = neigh_distances[i] - mean[i]--opposit of article
-			rel:div(self.slope * rng[i])
-			rel = torch.exp(rel) + 1
-			rel:cinv()
-		end
-	end
+	self:update_relevances(neigh_distances, neigh_relevances)
 
 	neigh_protos = self:interp_many(neigh_protos, pattern, lr)
 
@@ -278,8 +316,10 @@ function LARFDSSOM:update_winner(pattern, s)
 			else
 				rel = self.distances[i] - mean[i]--opposit of article
 				rel:div(self.slope * rng[i])
-				rel = torch.exp(rel) + 1
+				rel:exp()
+				rel:add(1)
 				rel:cinv()
+				self.relevances[i]:copy(rel)
 			end
 		end
 	end
@@ -304,8 +344,10 @@ function LARFDSSOM:update_winner(pattern, s)
 			else
 				rel = dist - mean--opposit of article
 				rel:div(self.slope * rng)
-				rel = torch.exp(rel) + 1
+				rel:exp()
+				rel:add(1)
 				rel:cinv()
+				self.relevances[i]:copy(rel)
 			end
 
 			proto:copy(self:interp(proto, pattern, e))
