@@ -20,7 +20,7 @@ if __name__ == '__main__':
 	files.append(
 			['../dbs/synth_dbsizescale/S5500.arff',
 			10,
-			params_folder + 'S5500.arff'])
+			'../orig_lhs_500_5x/best_params/S5500.arff'])
 
 	run_files(files)
 
