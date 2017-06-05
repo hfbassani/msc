@@ -44,7 +44,14 @@ def build_script(program, input_file, seed, params):
 		script += ' -' + flags[i] + ' ' + params[i]
 	return script + ' > /dev/null'
 
-def run_file(program, n_exec, output_folder, input_file, qt_cat, params_path):
+def execute(program, input_file, seed, params, qt_cat):
+	script = build_script(program, input_file, seed, params)
+	t0 = time.time()
+	os.system(script)
+	t1 = time.time()
+	return [eval_error(input_file, qt_cat), (t1-t0)]
+
+def run_file(program, n_exec, seeds, output_folder, input_file, qt_cat, params_path):
 	slash_idx = string.rfind(input_file, '/')
 	output_path = output_folder + input_file[slash_idx:]
 	with open(output_path, 'w') as output:
@@ -52,19 +59,12 @@ def run_file(program, n_exec, output_folder, input_file, qt_cat, params_path):
 		output.write('#' + input_file + ' ' + str(len(all_params)) + ' configs ' + str(n_exec) + 'x\n')
 
 		for params in all_params:
-			random.seed(12345)
-			times, ces = [0]*n_exec, [0]*n_exec
 			# execute
-			for i in range(n_exec):
-				seed = int(random.getrandbits(30))
-				script = build_script(program, input_file, seed, params)
+			results = [execute(program, input_file, seeds[i], params, qt_cat)
+					for i in range(n_exec)]
 
-				t0 = time.time()
-				os.system(script)
-				t1 = time.time()
-				times[i] = t1-t0
-				ces[i] = eval_error(input_file, qt_cat)
-
+			ces = [results[i][0] for i in range(n_exec)]
+			times = [results[i][1] for i in range(n_exec)]
 			avg_ce, stdev_ce = distr(ces)
 			avg_t, stdev_t = distr(times)
 
@@ -86,7 +86,14 @@ def run_files(files):
 	output_folder = sys.argv[3]
 
 	print(program + ' ' + str(n_exec) + ' ' + output_folder)
+
 	os.system("mkdir " + output_folder)
+
+	random.seed(12345)
+	seeds = [0]*n_exec
+	for i in range(n_exec):
+		seeds[i] = int(random.getrandbits(30))
+
 	for f in files:
-		run_file(program, n_exec, output_folder, f[0], f[1], f[2])
+		run_file(program, n_exec, seeds, output_folder, f[0], f[1], f[2])
 
