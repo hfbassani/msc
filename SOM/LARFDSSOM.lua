@@ -2,14 +2,20 @@ require 'math'
 require 'torch'
 --require 'cutorch'
 
+torch.setdefaulttensortype('torch.FloatTensor')
+
 --[[
 melhoras
-como atualizar relevances?
+precalcular
+	soma das relevances
+	min/mean/max das distances
+atualizar vencedores
+	em batch, com lr = 0, eb, en
+	em loop, um por um
+	com subconjuntos
 update_all_connections
 testar localidade da cache guardando os dados de um neuronio juntos
 ]]--
-
-torch.setdefaulttensortype('torch.FloatTensor')
 
 LARFDSSOM = {}
 LARFDSSOM.__index = LARFDSSOM
@@ -38,11 +44,11 @@ function LARFDSSOM:resize(n)
 	self.n = n
 	if n == 0 then return end
 
-	self.protos = self._protos[{{1, n}}]
-	self.distances = self._distances[{{1, n}}]
-	self.relevances = self._relevances[{{1, n}}]
-	self.wins = self._wins[{{1, n}}]
-	self.neighbors = self._neighbors[{{1, n}, {1, n}}]
+	self.protos = self._protos:sub(1, n)
+	self.distances = self._distances:sub(1, n)
+	self.relevances = self._relevances:sub(1, n)
+	self.wins = self._wins:sub(1, n)
+	self.neighbors = self._neighbors:sub(1, n, 1, n)
 end
 
 function LARFDSSOM:allocate_data()
@@ -69,7 +75,7 @@ end
 function LARFDSSOM:filter(tns, idxs)
 	local n = idxs:size(1)
 	local tmp = tns:index(1, idxs)
-	tns[{{1, n}}]:copy(tmp)
+	tns:sub(1, n):copy(tmp)
 end
 
 function LARFDSSOM:remove_nodes(rounds)
@@ -77,15 +83,15 @@ function LARFDSSOM:remove_nodes(rounds)
 	--must have at least one neuron
 	if idxs:nElement() == 0 then
 		idxs = torch.LongTensor({1})
+	else
+		idxs = idxs:squeeze(2)
 	end
-	local n = idxs:size(1)
-	idxs:resize(n)
 
 	self:filter(self.protos, idxs)
 	self:filter(self.distances, idxs)
 	self:filter(self.relevances, idxs)
 
-	self:resize(n)
+	self:resize(idxs:size(1))
 	self:update_all_connections()
 end
 --[[
@@ -111,22 +117,22 @@ end
 
 --update all connections between node i and previous nodes
 function LARFDSSOM:update_connections(i)
+	self.neighbors[i][i] = 1
 	if i == 1 then return end
-	local rel = self.relevances[i]
-	rel:resize(1, self.dim)
+	local rel = self.relevances:sub(i, i)
 	rel = rel:expand(i-1, self.dim)
 
-	local r_dif = self.relevances[{{1, i-1}, {}}] - rel
-	local r_dist = torch.norm(r_dif, 2, 2)
-	r_dist:resize(i-1)
+	local r_dif = self.relevances:sub(1, i-1) - rel
+	local r_dist = torch.norm(r_dif, 2, 2):squeeze(2)
 
 	local neigh = r_dist:lt(self.conn_thr)
-	self.neighbors[{i, {1, i-1}}]:copy(neigh)
-	self.neighbors[{{1, i-1}, i}]:copy(neigh)
+	self.neighbors:sub(i, i, 1, i-1):squeeze(1):copy(neigh)
+	self.neighbors:sub(1, i-1, i, i):squeeze(2):copy(neigh)
 end
 --[[
 function LARFDSSOM:update_connections(i)
-	for j = 1, i do
+	self.neighbors[i][i] = 1
+	for j = 1, i-1 do
 		local dif = self.relevances[i] - self.relevances[j]
 		local neigh = (torch.norm(dif) < self.conn_thr) and 1 or 0
 		self.neighbors[i][j] = neigh
@@ -135,26 +141,33 @@ function LARFDSSOM:update_connections(i)
 end
 ]]--
 
---[[
 function LARFDSSOM:update_all_connections()
+	local t1 = self.relevances:view(self.n, 1, self.dim)
+	local t2 = self.relevances:view(1, self.n, self.dim)
+	t1 = t1:expand(self.n, self.n, self.dim)
+	t2 = t2:expand(self.n, self.n, self.dim)
+
+	local norm = torch.norm(t1-t2, 2, 3):squeeze(3)
+
+	local neigh = norm:lt(self.conn_thr)
+	self.neighbors:copy(neigh)
 end
-]]--
+--[[
 function LARFDSSOM:update_all_connections()
 	for i = 1, self.n do
 		self:update_connections(i)
 	end
 end
+]]--
 
 function LARFDSSOM:calculate_activation(pattern)
-	pattern:resize(1, self.dim)
+	pattern = pattern:view(1, self.dim)
 	pattern = pattern:expand(self.n, self.dim)
 
 	local p_dif = torch.pow(pattern - self.protos, 2)
 	p_dif:cmul(self.relevances)
-	local p_dist = torch.sum(p_dif, 2)
-	p_dist:resize(self.n)
-	local rel_norm = torch.sum(self.relevances, 2)
-	rel_norm:resize(self.n)
+	local p_dist = torch.sum(p_dif, 2):squeeze(2)
+	local rel_norm = torch.sum(self.relevances, 2):squeeze(2)
 	local act = torch.cdiv(p_dist, rel_norm + self.eps) + 1
 	act:cinv()
 
@@ -196,22 +209,19 @@ function LARFDSSOM:interp(a, b, r)
 end
 
 function LARFDSSOM:update_winner(pattern, s)
-	local lr = self:get_learning_rates(s)
-	lr:resize(self.n, 1)
+	local lr = self:get_learning_rates(s):view(self.n, 1)
 	lr = lr:expand(self.n, self.dim)
 
-	pattern:resize(1, self.dim)
+	pattern = pattern:view(1, self.dim)
 	pattern = pattern:expand(self.n, self.dim)
 	local dif = torch.abs(pattern - self.protos)
 	self.distances:copy(self:interp(self.distances, dif, lr*self.beta))
 
-	local mean = self.distances:mean(2)
-	mean:resize(self.n)
+	local mean = self.distances:mean(2):squeeze(2)
 
-	mx, mxi = self.distances:max(2)
-	mn, mni = self.distances:min(2)
-	local rng = mx-mn
-	rng:resize(self.n)
+	mx = self.distances:max(2)
+	mn = self.distances:min(2)
+	local rng = (mx-mn):squeeze(2)
 
 	for i = 1, self.n do
 		local rel = self.relevances[i]
