@@ -8,12 +8,7 @@ torch.setdefaulttensortype('torch.FloatTensor')
 melhoras
 precalcular
 	soma das relevances
-	min/mean/max das distances
-atualizar vencedores
-	em batch, com lr = 0, eb, en
-	em loop, um por um
-	com subconjuntos
-update_all_connections
+conferir problemas com atribuicoes e referencias
 testar localidade da cache guardando os dados de um neuronio juntos
 ]]--
 
@@ -22,7 +17,7 @@ LARFDSSOM.__index = LARFDSSOM
 LARFDSSOM.eps = 1e-9
 
 function LARFDSSOM:new(params)
-	o = {
+	local o = {
 		tmax = params.tmax,
 		_nmax = params.nmax,
 		at = params.at,
@@ -40,6 +35,16 @@ function LARFDSSOM:new(params)
 	return o
 end
 
+function LARFDSSOM:allocate_data()
+	--allocate maximum size, but don't necessarily use it all
+	self._protos = torch.Tensor(self.nmax, self.dim)
+	self._distances = torch.Tensor(self.nmax, self.dim)
+	self._relevances = torch.Tensor(self.nmax, self.dim)
+	self._wins = torch.IntTensor(self.nmax)
+	self._neighbors = torch.ByteTensor(self.nmax, self.nmax)
+	self:resize(0)
+end
+
 function LARFDSSOM:resize(n)
 	self.n = n
 	if n == 0 then return end
@@ -49,16 +54,6 @@ function LARFDSSOM:resize(n)
 	self.relevances = self._relevances:sub(1, n)
 	self.wins = self._wins:sub(1, n)
 	self.neighbors = self._neighbors:sub(1, n, 1, n)
-end
-
-function LARFDSSOM:allocate_data()
-	--allocate maximum size, but don't necessarily use it all
-	self._protos = torch.Tensor(self.nmax, self.dim)
-	self._distances = torch.Tensor(self.nmax, self.dim)
-	self._relevances = torch.Tensor(self.nmax, self.dim)
-	self._wins = torch.IntTensor(self.nmax)
-	self._neighbors = torch.ByteTensor(self.nmax, self.nmax)
-	self:resize(0)
 end
 
 function LARFDSSOM:new_node(row, wins)
@@ -148,7 +143,6 @@ function LARFDSSOM:update_all_connections()
 	t2 = t2:expand(self.n, self.n, self.dim)
 
 	local norm = torch.norm(t1-t2, 2, 3):squeeze(3)
-
 	local neigh = norm:lt(self.conn_thr)
 	self.neighbors:copy(neigh)
 end
@@ -196,6 +190,20 @@ function LARFDSSOM:calculate_activation(pattern)
 end
 ]]--
 
+function LARFDSSOM:get_neighborhood(s)
+	local idx = self.neighbors[s]:nonzero()
+	if idx:nElement() == 0 then
+		idx = torch.LongTensor({s})
+	else
+		idx = idx:squeeze(2)
+	end
+	local nn, sidx = idx:size(1), 1
+	while idx[sidx] ~= s do sidx = sidx+1 end
+	local lr = torch.Tensor(nn):fill(self.en)
+	lr[sidx] = self.eb
+	return idx, lr, nn
+end
+
 function LARFDSSOM:get_learning_rates(s)
 	local lr = self.neighbors[s]:type('torch.FloatTensor')
 	lr:apply(function(x) return x*self.en end)
@@ -203,11 +211,51 @@ function LARFDSSOM:get_learning_rates(s)
 	return lr
 end
 
-
-function LARFDSSOM:interp(a, b, r)
+function LARFDSSOM:interp_many(a, b, r)
 	return torch.cmul(a, -r + 1) + torch.cmul(b, r)
 end
 
+function LARFDSSOM:interp(a, b, r)
+	return (a*(1-r)) + (b*r)
+end
+
+function LARFDSSOM:update_winner(pattern, s)
+	local idx, lr, nn = self:get_neighborhood(s)
+	local neigh_distances = self.distances:index(1, idx)
+	local neigh_relevances = self.relevances:index(1, idx)
+	local neigh_protos = self.protos:index(1, idx)
+
+	lr = lr:view(nn, 1):expand(nn, self.dim)
+
+	pattern = pattern:view(1, self.dim)
+	pattern = pattern:expand(nn, self.dim)
+	local dif = torch.abs(pattern - neigh_protos)
+	neigh_distances = self:interp_many(neigh_distances, dif, lr*self.beta)
+
+	local mean = neigh_distances:mean(2):squeeze(2)
+	local mx = neigh_distances:max(2)
+	local mn = neigh_distances:min(2)
+	mx, mn = mx:squeeze(2), mn:squeeze(2)
+	local rng = mx-mn
+
+	for i = 1, nn do
+		local rel = neigh_relevances[i]
+		if rng[i] < self.eps then rel:fill(1)
+		else
+			rel = neigh_distances[i] - mean[i]--opposit of article
+			rel:div(self.slope * rng[i])
+			rel = torch.exp(rel) + 1
+			rel:cinv()
+		end
+	end
+
+	neigh_protos = self:interp_many(neigh_protos, pattern, lr)
+
+	self.distances:indexCopy(1, idx, neigh_distances)
+	self.relevances:indexCopy(1, idx, neigh_relevances)
+	self.protos:indexCopy(1, idx, neigh_protos)
+end
+--[[
 function LARFDSSOM:update_winner(pattern, s)
 	local lr = self:get_learning_rates(s):view(self.n, 1)
 	lr = lr:expand(self.n, self.dim)
@@ -215,30 +263,28 @@ function LARFDSSOM:update_winner(pattern, s)
 	pattern = pattern:view(1, self.dim)
 	pattern = pattern:expand(self.n, self.dim)
 	local dif = torch.abs(pattern - self.protos)
-	self.distances:copy(self:interp(self.distances, dif, lr*self.beta))
+	self.distances:copy(self:interp_many(self.distances, dif, lr*self.beta))
 
 	local mean = self.distances:mean(2):squeeze(2)
-
-	mx = self.distances:max(2)
-	mn = self.distances:min(2)
-	local rng = (mx-mn):squeeze(2)
+	local mx = self.distances:max(2)
+	local mn = self.distances:min(2)
+	mx, mn = mx:squeeze(2), mn:squeeze(2)
+	local rng = mx-mn
 
 	for i = 1, self.n do
-		local rel = self.relevances[i]
-		if rng[i] < self.eps then rel:fill(1)
-		else
-			rel = self.distances[i] - mean[i]--opposit of article
-			rel:div(self.slope * rng[i])
-			rel = torch.exp(rel) + 1
-			rel:cinv()
+		if self.neighbors[s][i] ~= 0 then
+			local rel = self.relevances[i]
+			if rng[i] < self.eps then rel:fill(1)
+			else
+				rel = self.distances[i] - mean[i]--opposit of article
+				rel:div(self.slope * rng[i])
+				rel = torch.exp(rel) + 1
+				rel:cinv()
+			end
 		end
 	end
 
-	self.protos:copy(self:interp(self.protos, pattern, lr))
-end
---[[
-function LARFDSSOM:interp(a, b, r)
-	return (a*(1-r)) + (b*r)
+	self.protos:copy(self:interp_many(self.protos, pattern, lr))
 end
 
 function LARFDSSOM:update_winner(pattern, s)
