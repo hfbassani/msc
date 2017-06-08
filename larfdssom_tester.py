@@ -91,8 +91,8 @@ def run_files(files):
 	output_folder = sys.argv[3]
 	print(program + ' ' + str(n_exec) + ' ' + output_folder)
 
-	os.system('mkdir ' + output_folder)
-	os.system('mkdir ' + output_folder + '/results')
+	#os.system('mkdir ' + output_folder)
+	#os.system('mkdir ' + output_folder + '/results')
 	random.seed(12345)
 	seeds = [0]*n_exec
 	for i in range(n_exec):
