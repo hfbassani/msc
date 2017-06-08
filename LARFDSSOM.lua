@@ -1,6 +1,6 @@
 require 'math'
 require 'torch'
---require 'cutorch'
+require 'cutorch'
 
 torch.setdefaulttensortype('torch.FloatTensor')
 
@@ -30,6 +30,7 @@ function LARFDSSOM:new(params)
 		_conn_thr = params.conn_thr,
 
 		projected = params.projected or false
+		cuda = params.cuda or true
 	}
 	setmetatable(o, self)
 	return o
@@ -37,11 +38,19 @@ end
 
 function LARFDSSOM:allocate_data()
 	--allocate maximum size, but don't necessarily use it all
-	self._protos = torch.Tensor(self.nmax, self.dim)
-	self._distances = torch.Tensor(self.nmax, self.dim)
-	self._relevances = torch.Tensor(self.nmax, self.dim)
-	self._wins = torch.IntTensor(self.nmax)
-	self._neighbors = torch.ByteTensor(self.nmax, self.nmax)
+	if self.cuda then
+		self._protos = torch.CudaTensor(self.nmax, self.dim)
+		self._distances = torch.CudaTensor(self.nmax, self.dim)
+		self._relevances = torch.CudaTensor(self.nmax, self.dim)
+		self._wins = torch.CudaIntTensor(self.nmax)
+		self._neighbors = torch.CudaByteTensor(self.nmax, self.nmax)
+	else
+		self._protos = torch.Tensor(self.nmax, self.dim)
+		self._distances = torch.Tensor(self.nmax, self.dim)
+		self._relevances = torch.Tensor(self.nmax, self.dim)
+		self._wins = torch.IntTensor(self.nmax)
+		self._neighbors = torch.ByteTensor(self.nmax, self.nmax)
+	end
 	self:resize(0)
 end
 
@@ -77,7 +86,11 @@ function LARFDSSOM:remove_nodes(rounds)
 	local idxs = self.wins:ge(self.lp*rounds):nonzero()
 	--must have at least one neuron
 	if idxs:nElement() == 0 then
-		idxs = torch.LongTensor({1})
+		if self.cuda then
+			idxs = torch.CudaLongTensor({1})
+		else
+			idxs = torch.LongTensor({1})
+		end
 	else
 		idxs = idxs:squeeze(2)
 	end
@@ -170,7 +183,12 @@ function LARFDSSOM:calculate_activation(pattern)
 end
 --[[
 function LARFDSSOM:calculate_activation(pattern)
-	local act = torch.Tensor(self.n)
+	local act = nil
+	if self.cuda then
+		act = torch.CudaTensor(self.n)
+	else
+		act = torch.Tensor(self.n)
+	end
 	for i = 1, self.n do
 		local dif = torch.pow(pattern - self.protos[i], 2)
 		local rel = self.relevances[i]
@@ -193,19 +211,32 @@ end
 function LARFDSSOM:get_neighborhood(s)
 	local idx = self.neighbors[s]:nonzero()
 	if idx:nElement() == 0 then
-		idx = torch.LongTensor({s})
+		if self.cuda then
+			idx = torch.CudaLongTensor({s})
+		else
+			idx = torch.LongTensor({s})
+		end
 	else
 		idx = idx:squeeze(2)
 	end
 	local nn, sidx = idx:size(1), 1
 	while idx[sidx] ~= s do sidx = sidx+1 end
-	local lr = torch.Tensor(nn):fill(self.en)
+	local lr = nil
+	if self.cuda then
+		lr = torch.CudaTensor(nn)
+	else
+		lr = torch.Tensor(nn)
+	end
+	lr:fill(self.en)
 	lr[sidx] = self.eb
 	return idx, lr, nn
 end
 
 function LARFDSSOM:get_learning_rates(s)
 	local lr = self.neighbors[s]:type('torch.FloatTensor')
+	if self.cuda then
+		lr = lr:cuda()
+	end
 	lr:apply(function(x) return x*self.en end)
 	lr[s] = self.eb
 	return lr
@@ -427,7 +458,11 @@ function LARFDSSOM:get_clusters(pattern)
 end
 
 function LARFDSSOM:process(raw_data)
-	self.data = torch.Tensor(raw_data)
+	if self.cuda then
+		self.data = torch.CudaTensor(raw_data)
+	else
+		self.data = torch.Tensor(raw_data)
+	end
 	self.dn = self.data:size(1)
 	self.dim = self.data:size(2)
 
