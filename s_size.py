@@ -2,17 +2,14 @@ from larfdssom_tester import run_files
 
 if __name__ == '__main__':
 	files = [
-		['S1500', 10],
-		['S2500', 10],
-		['S3500', 10],
-		['S4500', 10]
+		['S1500'],
+		['S2500'],
+		['S3500'],
+		['S4500']
 	]
-	input_folder = '../dbs/synth_dbsizescale/'
-	params_folder = '../orig_lhs_500_5x/best_params/'
-	files = [
-			[input_folder + f[0] + '.arff',
-			f[1],
-			params_folder + f[0] + '.arff']
+	input_folder = '../dbs/size/'
+	params_file = '../lhs_500'
+	files = [[f[0], input_folder, params_file]
 			for f in files]
 
 	run_files(files)
