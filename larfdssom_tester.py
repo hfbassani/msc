@@ -5,8 +5,6 @@ import string
 import sys
 import time
 
-from cluster_functions import multilabelresults2clustering_error
-
 def read_data(filename):
 	with open(filename, 'r') as f:
 		data = [line.split(',')
@@ -22,10 +20,6 @@ def distr(a):
 	var = sum([(v-avg)**2 for v in a])/max(1, n-1)
 	return avg, math.sqrt(var)
 
-def eval_error(input_file, qt_cat):
-	ce, outconf = multilabelresults2clustering_error(input_file, input_file+'.results', qt_cat)
-	return 1.0 - ce
-
 flags = [
 	'v',#at
 	'l',#lp
@@ -38,25 +32,40 @@ flags = [
 ]
 fn = len(flags)
 
-def build_script(program, input_file, seed, params):
+def build_script(program, seed, params, input_file):
 	script = program + ' -f ' + input_file + ' -r ' + str(seed) + ' -m 70 -n 1000'
 	for i in range(fn):
 		script += ' -' + flags[i] + ' ' + params[i]
 	return script + ' > /dev/null'
 
-def execute(program, input_file, seed, params, qt_cat):
-	script = build_script(program, input_file, seed, params)
+def eval_error(file_name, file_folder, output_folder):
+	tmp_file = output_folder + '/tmp_' + file_name
+	script = 'java -jar ../ClusteringAnalysis.jar "CE"'
+	script += ' "' + file_folder + '/' + file_name + '/"'
+	script += ' "' + output_folder + '/results/"'
+	script += ' "' + tmp_file + '" -r 1 > /dev/null'
+	os.system(script)
+	with open(tmp_file, 'r') as f:
+		lines = [line for line in f]
+		ce = lines[1][9:]
+		return 1.0 - float(ce.strip())
+
+def execute(program, seed, params, file_name, file_folder, output_folder):
+	input_file = file_folder + '/' + file_name + '/' + file_name + '.arff'
+	results_file = output_folder + '/results/' + file_name + '_0.results'
+	script = build_script(program, seed, params, input_file)
 	t0 = time.time()
 	os.system(script)
 	t1 = time.time()
-	return [eval_error(input_file, qt_cat), (t1-t0)]
+	os.system('mv ' + input_file + '.results ' + results_file)
+	return [eval_error(file_name, file_folder, output_folder), (t1-t0)]
 
-def run_file(program, seeds, output_folder, output, all_params, input_file, qt_cat):
+def run_file(program, seeds, output_folder, output, all_params, file_name, file_folder):
 	n_exec = len(seeds)
-	output.write('#' + input_file + ' ' + str(len(all_params)) + ' configs ' + str(n_exec) + 'x\n')
+	output.write('#' + file_folder + '/' + file_name + ' ' + str(len(all_params)) + ' configs ' + str(n_exec) + 'x\n')
 	for params in all_params:
 		# execute
-		results = [execute(program, input_file, seeds[i], params, qt_cat)
+		results = [execute(program, seeds[i], params, file_name, file_folder, output_folder)
 				for i in range(n_exec)]
 
 		ces = [results[i][0] for i in range(n_exec)]
@@ -80,20 +89,20 @@ def run_files(files):
 	n_exec = int(sys.argv[2])
 	# output folder
 	output_folder = sys.argv[3]
-
 	print(program + ' ' + str(n_exec) + ' ' + output_folder)
 
-	os.system("mkdir " + output_folder)
-
+	os.system('mkdir ' + output_folder)
+	os.system('mkdir ' + output_folder + '/results')
 	random.seed(12345)
 	seeds = [0]*n_exec
 	for i in range(n_exec):
 		seeds[i] = int(random.getrandbits(30))
 
 	for f in files:
+		# file_name, input_folder, params_file
+		file_name, file_folder = f[0], f[1]
 		all_params = read_data(f[2])
-		slash_idx = string.rfind(f[0], '/')
-		output_path = output_folder + input_file[slash_idx:]
+		output_path = output_folder + '/' + file_name
 		with open(output_path, 'w') as output:
-			run_file(program, seeds, output_folder, output, all_params, f[0], f[1])
+			run_file(program, seeds, output_folder, output, all_params, file_name, file_folder)
 
