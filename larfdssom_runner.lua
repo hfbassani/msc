@@ -77,9 +77,9 @@ params.tmax = params.tmax * dn
 
 --run algorithm
 larfdssom = LARFDSSOM:new(params)
-clusters = larfdssom:process(data)
+assignments = larfdssom:process(data)
 cn = larfdssom.n
 
 --save results
-write_results_file(output_file, clusters, cn, dim)
+write_results_file(output_file, assignments, larfdssom.relevances, cn, dim)
 

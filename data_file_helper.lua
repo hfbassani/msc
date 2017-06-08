@@ -51,22 +51,30 @@ function read_arff_data(path, normalized)
 end
 
 --results file without cluster descriptions
-function write_results_file(path, clusters, cn, dim)
+function write_results_file(path, assignments, relevances, cn, dim)
 	local file = assert(io.open(path, "w"))
 	file:write(cn, " ", dim, "\n")
 
-	local any_pat = false
-	local dn = table.getn(clusters)
+	for i = 1, cn do
+		file:write(i-1)
+		for j = 1, dim do
+			file:write(" ", relevances[i][j])
+		end
+		file:write("\n")
+	end
+
+	local any_assg = false
+	local dn = table.getn(assignments)
 	for i = 1, dn do
-		local q = table.getn(clusters[i])
+		local q = table.getn(assignments[i])
 		for j = 1, q do
-			file:write(i-1, " ", clusters[i][j]-1, "\n")
-			any_pat = true
+			file:write(i-1, " ", assignments[i][j]-1, "\n")
+			any_assg = true
 		end
 	end
 
-	--rare case when there is no pattern-cluster pair at all, we must write at least one
-	if not any_pat then
+	--rare case when there is no assignment pair at all, we must write at least one
+	if not any_assg then
 		file:write("0 0\n")
 	end
 	file:close()
