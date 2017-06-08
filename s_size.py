@@ -7,7 +7,7 @@ if __name__ == '__main__':
 		['S3500'],
 		['S4500']
 	]
-	input_folder = '../dbs/size/'
+	input_folder = '../dbs/size'
 	params_file = '../lhs_500'
 	files = [[f[0], input_folder, params_file]
 			for f in files]
