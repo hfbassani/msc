@@ -51,29 +51,25 @@ def execute(program, input_file, seed, params, qt_cat):
 	t1 = time.time()
 	return [eval_error(input_file, qt_cat), (t1-t0)]
 
-def run_file(program, n_exec, seeds, output_folder, input_file, qt_cat, params_path):
-	slash_idx = string.rfind(input_file, '/')
-	output_path = output_folder + input_file[slash_idx:]
-	with open(output_path, 'w') as output:
-		all_params = read_data(params_path)
-		output.write('#' + input_file + ' ' + str(len(all_params)) + ' configs ' + str(n_exec) + 'x\n')
+def run_file(program, seeds, output_folder, output, all_params, input_file, qt_cat):
+	n_exec = len(seeds)
+	output.write('#' + input_file + ' ' + str(len(all_params)) + ' configs ' + str(n_exec) + 'x\n')
+	for params in all_params:
+		# execute
+		results = [execute(program, input_file, seeds[i], params, qt_cat)
+				for i in range(n_exec)]
 
-		for params in all_params:
-			# execute
-			results = [execute(program, input_file, seeds[i], params, qt_cat)
-					for i in range(n_exec)]
+		ces = [results[i][0] for i in range(n_exec)]
+		times = [results[i][1] for i in range(n_exec)]
+		avg_ce, stdev_ce = distr(ces)
+		avg_t, stdev_t = distr(times)
 
-			ces = [results[i][0] for i in range(n_exec)]
-			times = [results[i][1] for i in range(n_exec)]
-			avg_ce, stdev_ce = distr(ces)
-			avg_t, stdev_t = distr(times)
-
-			for i in range(fn):
-				output.write(params[i] + ',')
-			output.write(str(avg_ce) + ',' + str(stdev_ce) + ',')
-			output.write(str(avg_t) + ',' + str(stdev_t) + '\n')
-			output.flush()
-			os.fsync(output.fileno())
+		for i in range(fn):
+			output.write(params[i] + ',')
+		output.write(str(avg_ce) + ',' + str(stdev_ce) + ',')
+		output.write(str(avg_t) + ',' + str(stdev_t) + '\n')
+		output.flush()
+		os.fsync(output.fileno())
 
 def run_files(files):
 	# program to execute, like these:
@@ -95,5 +91,9 @@ def run_files(files):
 		seeds[i] = int(random.getrandbits(30))
 
 	for f in files:
-		run_file(program, n_exec, seeds, output_folder, f[0], f[1], f[2])
+		all_params = read_data(f[2])
+		slash_idx = string.rfind(f[0], '/')
+		output_path = output_folder + input_file[slash_idx:]
+		with open(output_path, 'w') as output:
+			run_file(program, seeds, output_folder, output, all_params, f[0], f[1])
 
