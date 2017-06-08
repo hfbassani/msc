@@ -1,2 +1,2 @@
 #!/bin/bash
-time python s_noise.py "../larfdssom" 5 "../output"
+time python s_2.py "../larfdssom" 5 "../output"

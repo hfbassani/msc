@@ -1,2 +1,2 @@
 #!/bin/bash
-time python s_dim.py "../larfdssom" 5 "../output"
+time python s_1.py "../larfdssom" 5 "../output"
