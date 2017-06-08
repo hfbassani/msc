@@ -9,6 +9,7 @@ melhoras
 precalcular
 	soma das relevances
 conferir problemas com atribuicoes e referencias
+half-precision floats
 testar localidade da cache guardando os dados de um neuronio juntos
 ]]--
 
