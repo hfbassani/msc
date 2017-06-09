@@ -48,7 +48,7 @@ def eval_error(file_name, file_folder, output_folder):
 	with open(tmp_file, 'r') as f:
 		lines = [line for line in f]
 		ce = lines[1][9:]
-		return 1.0 - float(ce.strip())
+		return float(ce.strip())
 
 def execute(program, seed, params, file_name, file_folder, output_folder):
 	input_file = file_folder + '/' + file_name + '/' + file_name + '.arff'
