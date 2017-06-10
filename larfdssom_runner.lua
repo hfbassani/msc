@@ -69,8 +69,8 @@ end
 output_file = input_file..'.results'
 torch.manualSeed(seed)
 
---read data (don't need to normalize)
-data = read_arff_data(input_file, true)
+--read data
+data = read_arff_data(input_file, false)
 dn, dim = table.getn(data), table.getn(data[1])
 params.maxcomp = math.floor(params.maxcomp * dn + 0.5)
 params.tmax = params.tmax * dn

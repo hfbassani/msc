@@ -57,7 +57,8 @@ def execute(program, seed, params, file_name, file_folder, output_folder):
 	t0 = time.time()
 	os.system(script)
 	t1 = time.time()
-	os.system('mv ' + input_file + '.results ' + results_file)
+	script = 'mv ' + input_file + '.results ' + results_file
+	os.system(script)
 	return [eval_error(file_name, file_folder, output_folder), (t1-t0)]
 
 def run_file(program, seeds, output_folder, output, all_params, file_name, file_folder):
