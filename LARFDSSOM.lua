@@ -6,14 +6,13 @@ torch.setdefaulttensortype('torch.FloatTensor')
 
 --[[
 todo
-get_neighborhood
-get_learning_rates
 tentar fazer operacoes in-place
 conferir problemas com atribuicoes e referencias
 
-escolher direitinho quais tensores botar na gpu
 half-precision floats
+escolher direitinho quais tensores botar na gpu
 aproveitar localidade da cache guardando os dados de um neuronio juntos
+atualizar separadamente o vencedor e os vizinhos
 ]]--
 
 LARFDSSOM = {}
@@ -80,7 +79,7 @@ function LARFDSSOM:new_node(row, wins)
 	self.protos[i]:copy(row)
 	self.distances[i]:fill(0)
 	self.relevances[i]:fill(1)
-	self.relevance_sums[i] = self.relevances[i]:sum() + self.eps
+	self.relevance_sums[i] = self.dim
 	self.wins[i] = math.ceil(wins)
 	self:update_connections(i)
 end
@@ -89,30 +88,25 @@ end
 function LARFDSSOM:filter(tns, idxs)
 	local n = idxs:size(1)
 	local tmp = tns:index(1, idxs)
-	tns:narrow(1, 1, n)
-		:copy(tmp)
+	tns:narrow(1, 1, n):copy(tmp)
 end
 
 function LARFDSSOM:remove_nodes(rounds)
 	local idxs = self.wins:ge(self.lp*rounds):nonzero()
-	--must have at least one neuron
+	--must keep at least one neuron
 	if idxs:nElement() == 0 then
-		if self.cuda then
-			idxs = torch.CudaLongTensor({1})
-		else
-			idxs = torch.LongTensor({1})
-		end
+		self:resize(1)
+		self.neighbors[1][1] = 1
 	else
 		idxs = idxs:squeeze(2)
+		self:filter(self.protos, idxs)
+		self:filter(self.distances, idxs)
+		self:filter(self.relevances, idxs)
+		self:filter(self.relevance_sums, idxs)
+
+		self:resize(idxs:size(1))
+		self:update_all_connections()
 	end
-
-	self:filter(self.protos, idxs)
-	self:filter(self.distances, idxs)
-	self:filter(self.relevances, idxs)
-	self:filter(self.relevance_sums, idxs)
-
-	self:resize(idxs:size(1))
-	self:update_all_connections()
 end
 --[[
 function LARFDSSOM:remove_nodes(rounds)
@@ -257,6 +251,7 @@ function LARFDSSOM:get_learning_rates(s)
 	return lr
 end
 
+--useless
 function LARFDSSOM:interp(a, b, r)
 	return (a*(1-r)) + (b*r)
 end
