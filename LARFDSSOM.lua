@@ -6,11 +6,10 @@ torch.setdefaulttensortype('torch.FloatTensor')
 
 --[[
 todo
+get_neighborhood
+get_learning_rates
 tentar fazer operacoes in-place
 conferir problemas com atribuicoes e referencias
-
-melhorias
-precalcular soma das relevances?
 
 escolher direitinho quais tensores botar na gpu
 half-precision floats
@@ -47,12 +46,14 @@ function LARFDSSOM:allocate_tensors()
 		self._protos = torch.CudaTensor(self.nmax, self.dim)
 		self._distances = torch.CudaTensor(self.nmax, self.dim)
 		self._relevances = torch.CudaTensor(self.nmax, self.dim)
+		self._relevance_sums = torch.CudaTensor(self.nmax)
 		self._wins = torch.CudaIntTensor(self.nmax)
 		self._neighbors = torch.CudaByteTensor(self.nmax, self.nmax)
 	else
 		self._protos = torch.Tensor(self.nmax, self.dim)
 		self._distances = torch.Tensor(self.nmax, self.dim)
 		self._relevances = torch.Tensor(self.nmax, self.dim)
+		self._relevance_sums = torch.Tensor(self.nmax)
 		self._wins = torch.IntTensor(self.nmax)
 		self._neighbors = torch.ByteTensor(self.nmax, self.nmax)
 	end
@@ -66,6 +67,7 @@ function LARFDSSOM:resize(n)
 	self.protos = self._protos:narrow(1, 1, n)
 	self.distances = self._distances:narrow(1, 1, n)
 	self.relevances = self._relevances:narrow(1, 1, n)
+	self.relevance_sums = self._relevance_sums:narrow(1, 1, n)
 	self.wins = self._wins:narrow(1, 1, n)
 	self.neighbors = self._neighbors
 		:narrow(1, 1, n)
@@ -78,6 +80,7 @@ function LARFDSSOM:new_node(row, wins)
 	self.protos[i]:copy(row)
 	self.distances[i]:fill(0)
 	self.relevances[i]:fill(1)
+	self.relevance_sums[i] = self.relevances[i]:sum() + self.eps
 	self.wins[i] = math.ceil(wins)
 	self:update_connections(i)
 end
@@ -106,6 +109,7 @@ function LARFDSSOM:remove_nodes(rounds)
 	self:filter(self.protos, idxs)
 	self:filter(self.distances, idxs)
 	self:filter(self.relevances, idxs)
+	self:filter(self.relevance_sums, idxs)
 
 	self:resize(idxs:size(1))
 	self:update_all_connections()
@@ -120,6 +124,7 @@ function LARFDSSOM:remove_nodes(rounds)
 				self.protos[i]:copy(self.protos[n])
 				self.distances[i]:copy(self.distances[n])
 				self.relevances[i]:copy(self.relevances[n])
+				self.relevance_sums[i] = self.relevance_sums[n]
 				self.wins[i] = self.wins[n]
 			end
 			i, n = i-1, n-1
@@ -189,8 +194,7 @@ function LARFDSSOM:calculate_activation(pattern)
 	p_dif:pow(2)
 	p_dif:cmul(self.relevances)
 	local act = p_dif:sum(2):squeeze(2)
-	local rel_norm = self.relevances:sum(2):squeeze(2) + self.eps
-	act:cdiv(rel_norm)
+	act:cdiv(self.relevance_sums)
 	act:add(1)
 	act:cinv()
 
@@ -211,7 +215,7 @@ function LARFDSSOM:calculate_activation(pattern)
 		local rel = self.relevances[i]
 		dif:cmul(rel)
 		local dw = dif:sum()--math.sqrt()
-		local rel_norm = rel:sum() + self.eps--torch.pow(rel, 2))
+		local rel_norm = self.relevance_sums[i]--torch.pow(rel, 2))
 		act[i] = 1/(1 + dw/rel_norm)
 	end
 
@@ -334,6 +338,8 @@ function LARFDSSOM:update_winner(pattern, s)
 
 	self.distances:indexCopy(1, idx, neigh_distances)
 	self.relevances:indexCopy(1, idx, neigh_relevances)
+	local rel_sums = neigh_relevances:sum(2):squeeze(2) + self.eps
+	self.relevance_sums:indexCopy(1, idx, rel_sums)
 	self.protos:indexCopy(1, idx, neigh_protos)
 end
 --[[
@@ -356,7 +362,9 @@ function LARFDSSOM:update_winner(pattern, s)
 	for i = 1, self.n do
 		if self.neighbors[s][i] ~= 0 then
 			local rel = self.relevances[i]
-			if rng[i] < self.eps then rel:fill(1)
+			if rng[i] < self.eps then
+				rel:fill(1)
+				self.relevance_sums[i] = self.dim
 			else
 				rel = self.distances[i] - mean[i]--opposit of article
 				rel:div(self.slope * rng[i])
@@ -364,6 +372,7 @@ function LARFDSSOM:update_winner(pattern, s)
 				rel:add(1)
 				rel:cinv()
 				self.relevances[i]:copy(rel)
+				self.relevance_sums[i] = rel:sum() + self.eps
 			end
 		end
 	end
@@ -384,7 +393,9 @@ function LARFDSSOM:update_winner(pattern, s)
 			dist:copy(self:interp(dist, dif, e*self.beta))
 
 			local mean, rng = dist:mean(), dist:max() - dist:min()
-			if rng < self.eps then rel:fill(1)
+			if rng < self.eps then
+				rel:fill(1)
+				self.relevance_sums[i] = self.dim
 			else
 				rel = dist - mean--opposit of article
 				rel:div(self.slope * rng)
@@ -392,6 +403,7 @@ function LARFDSSOM:update_winner(pattern, s)
 				rel:add(1)
 				rel:cinv()
 				self.relevances[i]:copy(rel)
+				self.relevance_sums[i] = rel:sum() + self.eps
 			end
 
 			proto:copy(self:interp(proto, pattern, e))
@@ -484,8 +496,7 @@ function LARFDSSOM:get_assignments()
 	dif:pow(2)
 	dif:cmul(rel)
 	local act = dif:sum(3):squeeze(3)
-	local rel_norm = self.relevances:sum(2) + self.eps
-	rel_norm = rel_norm
+	local rel_norm = self.relevance_sums
 		:view(1, self.n)
 		:expand(self.dn, self.n)
 	act:cdiv(rel_norm)
