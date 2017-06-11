@@ -39,7 +39,7 @@ def build_script(program, seed, params, input_file):
 	return script + ' > /dev/null'
 
 def eval_error(file_name, file_folder, output_folder):
-	tmp_file = output_folder + '/tmp_' + file_name
+	tmp_file = output_folder + '/tmp/' + file_name
 	script = 'java -jar ../ClusteringAnalysis.jar "CE"'
 	script += ' "' + file_folder + '/' + file_name + '/"'
 	script += ' "' + output_folder + '/results/"'

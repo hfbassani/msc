@@ -1,6 +1,7 @@
 #!/bin/bash
 mkdir ../output
 mkdir ../output/results
+mkdir ../output/tmp
 mkdir ../error
 nohup ./s4.sh &> ../error/err_4 &
 nohup ./s5.sh &> ../error/err_5 &
