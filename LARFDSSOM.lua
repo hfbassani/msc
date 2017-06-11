@@ -510,10 +510,15 @@ function LARFDSSOM:normalize_data()
 	local rng_flat = rng:squeeze(1)
 	local zero_cols = rng_flat
 		:lt(self.eps):nonzero()
-	zero_cols:apply(function(i)
-		self.data:select(2, i):fill(0)
-		rng_flat[i] = 1
-	end)
+	if zero_cols:nElement() > 0 then
+		zero_cols = zero_cols:squeeze(2)
+		local zn = zero_cols:size(1)
+		for ii = 1, zn do
+			local i = zero_cols[ii]
+			self.data:select(2, i):fill(0)
+			rng_flat[i] = 1
+		end
+	end
 
 	mn = mn:expand(self.dn, self.dim)
 	rng = rng:expand(self.dn, self.dim)
