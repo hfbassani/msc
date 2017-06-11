@@ -63,20 +63,16 @@ function write_results_file(path, assignments, relevances, cn, dim)
 		file:write("\n")
 	end
 
-	local any_assg = false
-	local dn = table.getn(assignments)
-	for i = 1, dn do
-		local q = table.getn(assignments[i])
-		for j = 1, q do
-			file:write(i-1, " ", assignments[i][j]-1, "\n")
-			any_assg = true
+	if assignments:nElement() == 0 then
+		--rare case when there is no assignment pair at all, we must write at least one
+		file:write("0 0\n")
+	else
+		local q = assignments:size(1)
+		for i = 1, q do
+			file:write(assignments[i][1]-1, " ", assignments[i][2]-1, "\n")
 		end
 	end
 
-	--rare case when there is no assignment pair at all, we must write at least one
-	if not any_assg then
-		file:write("0 0\n")
-	end
 	file:close()
 end
 

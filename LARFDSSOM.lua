@@ -6,6 +6,8 @@ torch.setdefaulttensortype('torch.FloatTensor')
 
 --[[
 todo
+ver ordem dos expand's
+se livrar dos for's restantes
 tentar fazer operacoes in-place
 conferir problemas com atribuicoes e referencias
 
@@ -35,7 +37,7 @@ function LARFDSSOM:new(params)
 		slope = params.slope,
 		_conn_thr = params.conn_thr,
 
-		projected = params.projected or false,
+		--projected = params.projected or false,
 		cuda = params.cuda or false
 	}
 	setmetatable(o, self)
@@ -195,8 +197,7 @@ function LARFDSSOM:calculate_activation(pattern)
 	act:add(1)
 	act:cinv()
 
-	local mx, mi = act:max(1)
-	return mx[1], mi[1], act
+	return act
 end
 --[[
 function LARFDSSOM:calculate_activation(pattern)
@@ -206,6 +207,7 @@ function LARFDSSOM:calculate_activation(pattern)
 	else
 		act = torch.Tensor(self.n)
 	end
+
 	for i = 1, self.n do
 		local dif = pattern - self.protos[i]
 		dif:pow(2)
@@ -216,13 +218,7 @@ function LARFDSSOM:calculate_activation(pattern)
 		act[i] = 1/(1 + dw/rel_norm)
 	end
 
-	local s, as = 0, -1
-	for i = 1, self.n do
-		if act[i] > as then
-			s, as = i, act[i]
-		end
-	end
-	return as, s, act
+	return act
 end
 ]]--
 
@@ -410,7 +406,16 @@ function LARFDSSOM:training_step()
 	self.nwins = self.nwins + 1
 	local idx = torch.random(1, self.dn)
 	local pattern = self.data[idx]
-	local as, s = self:calculate_activation(pattern)
+
+	local act = self:calculate_activation(pattern)
+	local mx, mi = act:max(1)
+	local as, s = mx[1], mi[1]
+	--[[local as, s = -1, 0
+	for i = 1, self.n do
+		if act[i] > as then
+			as, s = act[i], i
+		end
+	end]]--
 
 	if as < self.at then
 		if self.n < self.nmax then
@@ -452,8 +457,11 @@ function LARFDSSOM:convergence()
 		self.wins:fill(0)
 
 		for t = 1, self.tmax do
-			local pattern = self.data[torch.random(1, self.dn)]
-			local as, s = self:calculate_activation(pattern)
+			local idx = torch.random(1, self.dn)
+			local pattern = self.data[idx]
+			local act = self:calculate_activation(pattern)
+			local mx, mi = act:max(1)
+			local as, s = mx[1], mi[1]
 			self:update_winner(pattern, s)
 			self.wins[s] = self.wins[s] + 1
 		end
@@ -461,19 +469,31 @@ function LARFDSSOM:convergence()
 end
 ]]--
 
-function LARFDSSOM:get_clusters(pattern)
-	local as, s, act = self:calculate_activation(pattern)
-	if as < self.at then--outlier
-		return {}
-	elseif self.projected then--single winner
-		return {s}
-	else
-		local idx, clusters = act:ge(self.at):nonzero(), {}
-		idx:apply(function(i)
-			table.insert(clusters, i)
-		end)
-		return clusters
-	end
+--calculates activation for all data patterns
+function LARFDSSOM:get_assignments()
+	local data = self.data
+		:view(self.dn, 1, self.dim)
+		:expand(self.dn, self.n, self.dim)
+	local protos = self.protos
+		:view(1, self.n, self.dim)
+		:expand(self.dn, self.n, self.dim)
+	local rel = self.relevances
+		:view(1, self.n, self.dim)
+		:expand(self.dn, self.n, self.dim)
+
+	local dif = data - protos
+	dif:pow(2)
+	dif:cmul(rel)
+	local act = dif:sum(3):squeeze(3)
+	local rel_norm = self.relevances:sum(2) + self.eps
+	rel_norm = rel_norm
+		:view(1, self.n)
+		:expand(self.dn, self.n)
+	act:cdiv(rel_norm)
+	act:add(1)
+	act:cinv()
+
+	return act:ge(self.at):nonzero()
 end
 
 function LARFDSSOM:normalize_data()
@@ -521,10 +541,6 @@ function LARFDSSOM:process(raw_data)
 	self:convergence()
 
 	--clustering
-	local clusters = {}
-	for i = 1, self.dn do
-		table.insert(clusters, self:get_clusters(self.data[i]))
-	end
-	return clusters
+	return self:get_assignments()
 end
 
