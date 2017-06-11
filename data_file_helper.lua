@@ -2,7 +2,7 @@ require 'io'
 require 'math'
 
 --custom arff file with class labels bitmask
-function read_arff_data(path, normalized)
+function read_arff_data(path, normalize)
 	local rows = {}
 
 	local capture = "([^,]+)"
@@ -20,7 +20,7 @@ function read_arff_data(path, normalized)
 	end
 	file:close()
 
-	if not normalized then
+	if normalize then
 		local dn, dim = table.getn(rows), table.getn(rows[1])
 		--for every attribute
 		for j = 1, dim do

@@ -5,12 +5,17 @@ require 'torch'
 torch.setdefaulttensortype('torch.FloatTensor')
 
 --[[
-melhoras
-precalcular
-	soma das relevances
+todo
+tentar fazer operacoes in-place
 conferir problemas com atribuicoes e referencias
+
+melhorias
+clustering das entradas em batch
+precalcular soma das relevances?
+
+escolher direitinho quais tensores botar na gpu
 half-precision floats
-testar localidade da cache guardando os dados de um neuronio juntos
+aproveitar localidade da cache guardando os dados de um neuronio juntos
 ]]--
 
 LARFDSSOM = {}
@@ -37,7 +42,7 @@ function LARFDSSOM:new(params)
 	return o
 end
 
-function LARFDSSOM:allocate_data()
+function LARFDSSOM:allocate_tensors()
 	--allocate maximum size, but don't necessarily use it all
 	if self.cuda then
 		self._protos = torch.CudaTensor(self.nmax, self.dim)
@@ -59,11 +64,13 @@ function LARFDSSOM:resize(n)
 	self.n = n
 	if n == 0 then return end
 
-	self.protos = self._protos:sub(1, n)
-	self.distances = self._distances:sub(1, n)
-	self.relevances = self._relevances:sub(1, n)
-	self.wins = self._wins:sub(1, n)
-	self.neighbors = self._neighbors:sub(1, n, 1, n)
+	self.protos = self._protos:narrow(1, 1, n)
+	self.distances = self._distances:narrow(1, 1, n)
+	self.relevances = self._relevances:narrow(1, 1, n)
+	self.wins = self._wins:narrow(1, 1, n)
+	self.neighbors = self._neighbors
+		:narrow(1, 1, n)
+		:narrow(2, 1, n)
 end
 
 function LARFDSSOM:new_node(row, wins)
@@ -80,7 +87,8 @@ end
 function LARFDSSOM:filter(tns, idxs)
 	local n = idxs:size(1)
 	local tmp = tns:index(1, idxs)
-	tns:sub(1, n):copy(tmp)
+	tns:narrow(1, 1, n)
+		:copy(tmp)
 end
 
 function LARFDSSOM:remove_nodes(rounds)
@@ -128,22 +136,27 @@ end
 function LARFDSSOM:update_connections(i)
 	self.neighbors[i][i] = 1
 	if i == 1 then return end
-	local rel = self.relevances:sub(i, i)
-	rel = rel:expand(i-1, self.dim)
+	local rel = self.relevances
+		:narrow(1, i, 1)
+		:expand(i-1, self.dim)
 
-	local r_dif = self.relevances:sub(1, i-1) - rel
-	local r_dist = torch.norm(r_dif, 2, 2):squeeze(2)
+	local r_dif = self.relevances:narrow(1, 1, i-1) - rel
+	local r_dist = r_dif:norm(2, 2):squeeze(2)
 
 	local neigh = r_dist:lt(self.conn_thr)
-	self.neighbors:sub(i, i, 1, i-1):squeeze(1):copy(neigh)
-	self.neighbors:sub(1, i-1, i, i):squeeze(2):copy(neigh)
+	self.neighbors:select(1, i)
+		:narrow(1, 1, i-1)
+		:copy(neigh)
+	self.neighbors:select(2, i)
+		:narrow(1, 1, i-1)
+		:copy(neigh)
 end
 --[[
 function LARFDSSOM:update_connections(i)
 	self.neighbors[i][i] = 1
 	for j = 1, i-1 do
 		local dif = self.relevances[i] - self.relevances[j]
-		local neigh = (torch.norm(dif) < self.conn_thr) and 1 or 0
+		local neigh = (dif:norm() < self.conn_thr) and 1 or 0
 		self.neighbors[i][j] = neigh
 		self.neighbors[j][i] = neigh
 	end
@@ -152,11 +165,11 @@ end
 
 function LARFDSSOM:update_all_connections()
 	local t1 = self.relevances:view(self.n, 1, self.dim)
+		:expand(self.n, self.n, self.dim)
 	local t2 = self.relevances:view(1, self.n, self.dim)
-	t1 = t1:expand(self.n, self.n, self.dim)
-	t2 = t2:expand(self.n, self.n, self.dim)
+		:expand(self.n, self.n, self.dim)
 
-	local norm = torch.norm(t1-t2, 2, 3):squeeze(3)
+	local norm = (t1-t2):norm(2, 3):squeeze(3)
 	local neigh = norm:lt(self.conn_thr)
 	self.neighbors:copy(neigh)
 end
@@ -168,18 +181,21 @@ function LARFDSSOM:update_all_connections()
 end
 ]]--
 
+
 function LARFDSSOM:calculate_activation(pattern)
 	pattern = pattern:view(1, self.dim)
-	pattern = pattern:expand(self.n, self.dim)
+		:expand(self.n, self.dim)
 
-	local p_dif = torch.pow(pattern - self.protos, 2)
+	local p_dif = pattern - self.protos
+	p_dif:pow(2)
 	p_dif:cmul(self.relevances)
-	local p_dist = torch.sum(p_dif, 2):squeeze(2)
-	local rel_norm = torch.sum(self.relevances, 2):squeeze(2)
-	local act = torch.cdiv(p_dist, rel_norm + self.eps) + 1
+	local act = p_dif:sum(2):squeeze(2)
+	local rel_norm = self.relevances:sum(2):squeeze(2) + self.eps
+	act:cdiv(rel_norm)
+	act:add(1)
 	act:cinv()
 
-	local mx, mi = torch.max(act, 1)
+	local mx, mi = act:max(1)
 	return mx[1], mi[1], act
 end
 --[[
@@ -191,12 +207,13 @@ function LARFDSSOM:calculate_activation(pattern)
 		act = torch.Tensor(self.n)
 	end
 	for i = 1, self.n do
-		local dif = torch.pow(pattern - self.protos[i], 2)
+		local dif = pattern - self.protos[i]
+		dif:pow(2)
 		local rel = self.relevances[i]
 		dif:cmul(rel)
-		local dw = torch.sum(dif)--math.sqrt()
-		local rel_norm = torch.sum(rel)--torch.pow(rel, 2))
-		act[i] = 1/(1 + dw/(rel_norm + self.eps))
+		local dw = dif:sum()--math.sqrt()
+		local rel_norm = rel:sum() + self.eps--torch.pow(rel, 2))
+		act[i] = 1/(1 + dw/rel_norm)
 	end
 
 	local s, as = 0, -1
@@ -238,13 +255,9 @@ function LARFDSSOM:get_learning_rates(s)
 	if self.cuda then
 		lr = lr:cuda()
 	end
-	lr:apply(function(x) return x*self.en end)
+	lr:mul(self.en)
 	lr[s] = self.eb
 	return lr
-end
-
-function LARFDSSOM:interp_many(a, b, r)
-	return torch.cmul(a, -r + 1) + torch.cmul(b, r)
 end
 
 function LARFDSSOM:interp(a, b, r)
@@ -257,27 +270,30 @@ function LARFDSSOM:update_relevances(distances, relevances)
 	mx, mn = mx:squeeze(2), mn:squeeze(2)
 	local rng = mx-mn
 
-	local idx1 = rng:lt(self.eps):nonzero()
-	if idx1:nElement() > 0 then
-		idx1 = idx1:squeeze(2)
-		relevances:indexFill(1, idx1, 1)
+	local idx = rng:lt(self.eps):nonzero()
+	if idx:nElement() > 0 then
+		idx = idx:squeeze(2)
+		relevances:indexFill(1, idx, 1)
 	end
 
-	local idx2 = rng:ge(self.eps):nonzero()
-	if idx2:nElement() > 0 then
-		idx2 = idx2:squeeze(2)
-		local nn = idx2:size(1)
-		distances = distances:index(1, idx2)
-		rng = rng:index(1, idx2)
-		rng = rng:view(nn, 1):expand(nn, self.dim)
+	local idx = rng:ge(self.eps):nonzero()
+	if idx:nElement() > 0 then
+		idx = idx:squeeze(2)
+		local nn = idx:size(1)
+		distances = distances:index(1, idx)
+		local mean = distances:mean(2)
+			:expand(nn, self.dim)
+		rng = rng:index(1, idx)
+			:view(nn, 1)
+			:expand(nn, self.dim)
 
-		local mean = distances:mean(2):expand(nn, self.dim)
-		local rel = distances - mean
+		local rel = distances
+		rel:csub(mean)
 		rel:cdiv(rng * self.slope)
 		rel:exp()
 		rel:add(1)
 		rel:cinv()
-		relevances:indexCopy(1, idx2, rel)
+		relevances:indexCopy(1, idx, rel)
 	end
 end
 --[[
@@ -304,22 +320,23 @@ function LARFDSSOM:update_relevances(distances, relevances)
 end
 ]]--
 
+
 function LARFDSSOM:update_winner(pattern, s)
 	local idx, lr, nn = self:get_neighborhood(s)
+	lr = lr:view(nn, 1)
+		:expand(nn, self.dim)
 	local neigh_distances = self.distances:index(1, idx)
 	local neigh_relevances = self.relevances:index(1, idx)
 	local neigh_protos = self.protos:index(1, idx)
 
-	lr = lr:view(nn, 1):expand(nn, self.dim)
-
 	pattern = pattern:view(1, self.dim)
-	pattern = pattern:expand(nn, self.dim)
+		:expand(nn, self.dim)
 	local dif = torch.abs(pattern - neigh_protos)
-	neigh_distances = self:interp_many(neigh_distances, dif, lr*self.beta)
+	neigh_distances:addcmul(dif - neigh_distances, lr*self.beta)
 
 	self:update_relevances(neigh_distances, neigh_relevances)
 
-	neigh_protos = self:interp_many(neigh_protos, pattern, lr)
+	neigh_protos:addcmul(pattern - neigh_protos, lr)
 
 	self.distances:indexCopy(1, idx, neigh_distances)
 	self.relevances:indexCopy(1, idx, neigh_relevances)
@@ -327,13 +344,14 @@ function LARFDSSOM:update_winner(pattern, s)
 end
 --[[
 function LARFDSSOM:update_winner(pattern, s)
-	local lr = self:get_learning_rates(s):view(self.n, 1)
-	lr = lr:expand(self.n, self.dim)
+	local lr = self:get_learning_rates(s)
+		:view(self.n, 1)
+		:expand(self.n, self.dim)
 
 	pattern = pattern:view(1, self.dim)
-	pattern = pattern:expand(self.n, self.dim)
+		:expand(self.n, self.dim)
 	local dif = torch.abs(pattern - self.protos)
-	self.distances:copy(self:interp_many(self.distances, dif, lr*self.beta))
+	self.distances:addcmul(dif - self.distances, lr*self.beta)
 
 	local mean = self.distances:mean(2):squeeze(2)
 	local mx = self.distances:max(2)
@@ -356,7 +374,7 @@ function LARFDSSOM:update_winner(pattern, s)
 		end
 	end
 
-	self.protos:copy(self:interp_many(self.protos, pattern, lr))
+	self.protos:addcmul(pattern - self.protos, lr)
 end
 
 function LARFDSSOM:update_winner(pattern, s)
@@ -458,6 +476,26 @@ function LARFDSSOM:get_clusters(pattern)
 	end
 end
 
+function LARFDSSOM:normalize_data()
+	local mx = self.data:max(1)
+	local mn = self.data:min(1)
+	local rng = mx-mn
+
+	--deal with columns with equal values
+	local rng_flat = rng:squeeze(1)
+	local zero_cols = rng_flat
+		:lt(self.eps):nonzero()
+	zero_cols:apply(function(i)
+		self.data:select(2, i):fill(0)
+		rng_flat[i] = 1
+	end)
+
+	mn = mn:expand(self.dn, self.dim)
+	rng = rng:expand(self.dn, self.dim)
+	self.data:csub(mn)
+	self.data:cdiv(rng)
+end
+
 function LARFDSSOM:process(raw_data)
 	if self.cuda then
 		self.data = torch.CudaTensor(raw_data)
@@ -466,10 +504,11 @@ function LARFDSSOM:process(raw_data)
 	end
 	self.dn = self.data:size(1)
 	self.dim = self.data:size(2)
+	self:normalize_data()
 
 	self.conn_thr = self._conn_thr*math.sqrt(self.dim)
 	self.nmax = self._nmax
-	self:allocate_data()
+	self:allocate_tensors()
 
 	--organization
 	self:new_node(self.data[1], 0)
