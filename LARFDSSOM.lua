@@ -6,13 +6,10 @@ torch.setdefaulttensortype('torch.FloatTensor')
 
 --[[
 todo
-ver ordem dos expand's
-se livrar dos for's restantes
 tentar fazer operacoes in-place
 conferir problemas com atribuicoes e referencias
 
 melhorias
-clustering das entradas em batch
 precalcular soma das relevances?
 
 escolher direitinho quais tensores botar na gpu
@@ -282,10 +279,11 @@ function LARFDSSOM:update_relevances(distances, relevances)
 		rng = rng:index(1, idx)
 			:view(nn, 1)
 			:expand(nn, self.dim)
+		rng:mul(self.slope)
 
 		local rel = distances
 		rel:csub(mean)
-		rel:cdiv(rng * self.slope)
+		rel:cdiv(rng)
 		rel:exp()
 		rel:add(1)
 		rel:cinv()
@@ -328,7 +326,7 @@ function LARFDSSOM:update_winner(pattern, s)
 	pattern = pattern:view(1, self.dim)
 		:expand(nn, self.dim)
 	local dif = torch.abs(pattern - neigh_protos)
-	neigh_distances:addcmul(dif - neigh_distances, lr*self.beta)
+	neigh_distances:addcmul(self.beta, dif - neigh_distances, lr)
 
 	self:update_relevances(neigh_distances, neigh_relevances)
 
@@ -347,7 +345,7 @@ function LARFDSSOM:update_winner(pattern, s)
 	pattern = pattern:view(1, self.dim)
 		:expand(self.n, self.dim)
 	local dif = torch.abs(pattern - self.protos)
-	self.distances:addcmul(dif - self.distances, lr*self.beta)
+	self.distances:addcmul(self.beta, dif - self.distances, lr)
 
 	local mean = self.distances:mean(2):squeeze(2)
 	local mx = self.distances:max(2)
@@ -446,7 +444,8 @@ function LARFDSSOM:convergence()
 		self:training_step()
 	end
 end
---[[same as article
+--[[
+same as article
 function LARFDSSOM:convergence()
 	while true do
 		local oldn = self.n
