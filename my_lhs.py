@@ -7,8 +7,8 @@ def pick(lo, hi, s):
 			for i in range(s)]
 
 def lhs(ranges, s):
-	samples = [pick(r[0], r[1], s) for r in ranges]
 	rn = len(ranges)
+	samples = [pick(r[0], r[1], s) for r in ranges]
 	for i in range(rn):
 		random.shuffle(samples[i])
 	return [[samples[i][j] for i in range(rn)]
@@ -22,13 +22,13 @@ if __name__ == '__main__':
 	random.seed(seed)
 
 	ranges = [
-		[0.7, 0.999],#at
-		[0.001, 0.1],#lp
-		[0.001, 0.1],#beta
+		[0.9, 0.999],#at
+		[0.0001, 0.1],#lp
+		[0.0001, 0.5],#beta
 		[1.0, 100.0],#maxcomp
-		[0.001, 0.1],#eb
-		[0.0001, 0.5],#en/eb
-		[0.01, 0.1],#s
+		[0.0001, 0.01],#eb
+		[0.001, 0.1],#en/eb
+		[0.01, 0.05],#s
 		[0, 0.5]#c
 	]
 	rn = len(ranges)
