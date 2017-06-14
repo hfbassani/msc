@@ -33,7 +33,7 @@ flags = [
 fn = len(flags)
 
 def build_script(program, seed, params, input_file, is_real_data):
-	script = program + ' -f ' + input_file + ' -r ' + str(seed) + ' -m 70 -n 1000'
+	script = program + ' -f ' + input_file + ' -r ' + str(seed) + ' -m 70 -n 100'
 	for i in range(fn):
 		script += ' -' + flags[i] + ' ' + params[i]
 	if is_real_data:

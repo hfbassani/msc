@@ -17,7 +17,7 @@ def lhs(ranges, s):
 if __name__ == '__main__':
 	s = int(sys.argv[1])
 	out_path = sys.argv[2]
-	seed = int(sys.argv[3])
+	seed = int(sys.argv[3])# 12345
 
 	random.seed(seed)
 
