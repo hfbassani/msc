@@ -19,49 +19,60 @@ params = {
 	en = 0.000001,
 	beta = 0.1,
 	slope = 0.001,
-	conn_thr = 0.5
+	conn_thr = 0.5,
+
+	projected = false,
+	noise_filter = true
 }
 seed = 0
 
 argc, ai = table.getn(arg), 1
 while ai <= argc do
-	if ai == argc then
-		io.write('wrong usage\n')
-		os.exit()
-	end
-	local flag, val = arg[ai], arg[ai+1]
-	ai = ai+2
+	local flag = arg[ai]
+	ai = ai+1
 
-	if flag == '-f' then
-		input_file = val
+	if flag == '-P' then
+		params.projected = true
+	elseif flag == '-o' then
+		params.noise_filter = false
 	else
-		val = tonumber(val)
-		if flag == '-m' then
-			params.nmax = val
-		elseif flag == '-n' or flag == '-t' then
-			params.tmax = val
-		elseif flag == '-v' then
-			params.at = val
-		elseif flag == '-l' then
-			params.lp = val
-		elseif flag == '-s' then
-			params.beta = val
-		elseif flag == '-i' then
-			params.maxcomp = val
-		elseif flag == '-e' then
-			params.eb = val
-		elseif flag == '-g' then
-			params.en = val
-		elseif flag == '-p' then
-			params.slope = val
-		elseif flag == '-w' then
-			params.conn_thr = val
-		elseif flag == '-r' then
-			seed = val
-		else
-			-- -P and O for projected clustering.. someday
+		if ai > argc then
 			io.write('wrong usage\n')
 			os.exit()
+		end
+		local val = arg[ai]
+		ai = ai+1
+
+		if flag == '-f' then
+			input_file = val
+		else
+			val = tonumber(val)
+			if flag == '-m' then
+				params.nmax = val
+			elseif flag == '-n' or flag == '-t' then
+				params.tmax = val
+			elseif flag == '-v' then
+				params.at = val
+			elseif flag == '-l' then
+				params.lp = val
+			elseif flag == '-s' then
+				params.beta = val
+			elseif flag == '-i' then
+				params.maxcomp = val
+			elseif flag == '-e' then
+				params.eb = val
+			elseif flag == '-g' then
+				params.en = val
+			elseif flag == '-p' then
+				params.slope = val
+			elseif flag == '-w' then
+				params.conn_thr = val
+			elseif flag == '-r' then
+				seed = val
+			else
+				io.write('wrong usage\n')
+				os.exit()
+			end
 		end
 	end
 end

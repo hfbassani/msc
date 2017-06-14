@@ -1,6 +1,6 @@
 require 'math'
 require 'torch'
-require 'cutorch'
+--require 'cutorch'
 
 torch.setdefaulttensortype('torch.FloatTensor')
 
@@ -32,8 +32,9 @@ function LARFDSSOM:new(params)
 		slope = params.slope,
 		_conn_thr = params.conn_thr,
 
-		--projected = params.projected or false,
-		cuda = params.cuda or true
+		projected = params.projected,
+		noise_filter = params.noise_filter,
+		cuda = params.cuda or false
 	}
 	setmetatable(o, self)
 	return o
@@ -498,7 +499,26 @@ function LARFDSSOM:get_assignments()
 	act:add(1)
 	act:cinv()
 
-	return act:ge(self.at):nonzero()
+	local mx, mi = act:max(2)
+	mx, mi = mx:squeeze(2), mi:squeeze(2)
+
+	if self.projected then
+		local result = {}
+		for i = 1, self.dn do
+			if (not self.noise_filter) or mx[i] >= self.at then
+				table.insert(result, {i, mi[i]})
+			end
+		end
+		return torch.Tensor(result)
+	else
+		local assig_table = act:ge(self.at)
+		if not self.noise_filter then
+			for i = 1, self.dn do
+				assig_table[i][mi[i]] = 1
+			end
+		end
+		return assig_table:nonzero()
+	end
 end
 
 function LARFDSSOM:normalize_data()
