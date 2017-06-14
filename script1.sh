@@ -1,3 +1,3 @@
 #!/bin/bash
 mkdir ../error
-nohup ./s10.sh &> ../error/err_10 &
+nohup ./s_1.sh &> ../error/err1 &
