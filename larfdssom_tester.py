@@ -89,7 +89,7 @@ def run_file(program, seeds, output_folder, output, all_params, file_name, file_
 def run_files(files):
 	# program to execute, like these:
 	# "../larfdssom"
-	# "luajit larfdssom_runner.lua"
+	# "th larfdssom_runner.lua"
 	program = sys.argv[1]
 	# amount of executions to measure time and clustering error
 	n_exec = int(sys.argv[2])

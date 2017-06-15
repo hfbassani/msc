@@ -1,7 +1,7 @@
 --TODO: add number of nodes as parameter
 --TODO: check changes in the data_file_helper
 --[[
-usage: luajit dssom_tester.lua data_folder file_name qty_categories target_error output_folder [--exact_n]
+usage: th dssom_tester.lua data_folder file_name qty_categories target_error output_folder [--exact_n]
 data_folder: data file folder
 file_name: input .arff file name
 qty_categories: amount of real clusters

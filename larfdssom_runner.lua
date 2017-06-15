@@ -1,4 +1,4 @@
---luajit larfdssom_runner.lua -f ../dbs/synth_dbsizescale/S1500.arff -r 12345 -m 70 -n 1000 -v 0.824569341891 -l 0.00200674777625 -s 0.0826954444161 -i 30.5653456648 -e 0.0374727572594 -g 0.0036315339349 -p 0.0609407351856 -w 0.0808439119647
+--th larfdssom_runner.lua -f ../dbs/synth_dbsizescale/S1500.arff -r 12345 -m 70 -n 1000 -v 0.824569341891 -l 0.00200674777625 -s 0.0826954444161 -i 30.5653456648 -e 0.0374727572594 -g 0.0036315339349 -p 0.0609407351856 -w 0.0808439119647
 --move this to the subspace-clustering folder to run mass tests
 
 require 'io'
