@@ -273,7 +273,7 @@ function LARFDSSOM:calculate_activation(pattern)
 
 	local p_dif = self:get_tmp1(5, self.n)
 	local act = self:get_tmp1(6, self.n)
-	p_dif:csub(pattern - self.protos)
+	p_dif:csub(pattern, self.protos)
 	p_dif:pow(2)
 	p_dif:cmul(self.relevances)
 	act:sum(p_dif, 2)
