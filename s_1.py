@@ -7,6 +7,7 @@ if __name__ == '__main__':
 		'N10', 'N30', 'N50', 'N70',
 		'S1500', 'S2500', 'S3500', 'S4500', 'S5500'
 	]
+	files = [ 'D05', 'D75', 'N10', 'N70', 'S1500', 'S5500' ]
 	input_folder = '../dbs'
 	params_folder = '../best_params'
 	files = [[f, input_folder, params_folder + '/' + f, False]
@@ -14,6 +15,5 @@ if __name__ == '__main__':
 	#for i in range(7):
 	#	files[i][3] = True
 
-	files = files[7:]
 	run_files(files)
 
