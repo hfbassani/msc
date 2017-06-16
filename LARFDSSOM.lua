@@ -6,15 +6,7 @@ torch.setdefaulttensortype('torch.FloatTensor')
 
 --[[
 tmp tensors
-talvez tirar
-	os que tem dimensao dn_or_n
-botar
-	filter
-	remove_nodes
-	update_connections.neigh
-	update_all_connections.neigh
-	get_neighborhood.idx
-	update_relevances.idx
+talvez tirar os que tem dimensao dn_or_n
 
 todo
 tentar fazer operacoes in-place
@@ -79,7 +71,7 @@ function LARFDSSOM:alloc(id, sizes)
 	end
 end
 
---next tmp: 20
+--next tmp: 23
 function LARFDSSOM:allocate_temp_tensors()
 	local dn_or_n = math.max(self.dn, self.nmax)
 	self:alloc(1, {self.nmax, self.dim})
@@ -103,8 +95,14 @@ function LARFDSSOM:allocate_temp_tensors()
 
 	if self.cuda then
 		self.tmp[10] = torch.CudaLongTensor(dn_or_n, 1)
+		self.tmp[20] = torch.CudaByteTensor(self.nmax)
+		self.tmp[21] = torch.CudaByteTensor(self.nmax, self.nmax)
+		self.tmp[22] = torch.CudaLongTensor(dn_or_n, 1)
 	else
 		self.tmp[10] = torch.LongTensor(dn_or_n, 1)
+		self.tmp[20] = torch.ByteTensor(self.nmax)
+		self.tmp[21] = torch.ByteTensor(self.nmax, self.nmax)
+		self.tmp[22] = torch.LongTensor(dn_or_n, 1)
 	end
 end
 
@@ -152,28 +150,35 @@ function LARFDSSOM:new_node(row, wins)
 end
 
 --select a subset of the rows of a tensor
---tmp tensors:
-function LARFDSSOM:filter(tns, idxs)
+function LARFDSSOM:filter(tns, idxs, tmp)
 	local n = idxs:size(1)
-	local tmp = tns:index(1, idxs)
+	tmp:index(tns, 1, idxs)
 	tns:narrow(1, 1, n):copy(tmp)
 end
 
---tmp tensors:
+--tmp tensors: 7, 10, 15 (reutilizing), 20
 function LARFDSSOM:remove_nodes(rounds)
-	local idxs = self.wins:ge(self.lp*rounds):nonzero()
+	local ge = self:get_tmp1(20, self.n)
+	local idxs = self:get_tmp1(10, self.n)
+
+	self.wins.ge(ge, self.wins, self.lp*rounds)
+	ge.nonzero(idxs, ge)
 	--must keep at least one neuron
 	if idxs:nElement() == 0 then
 		self:resize(1)
 		self.neighbors[1][1] = 1
 	else
 		idxs = idxs:squeeze(2)
-		self:filter(self.protos, idxs)
-		self:filter(self.distances, idxs)
-		self:filter(self.relevances, idxs)
-		self:filter(self.relevance_sums, idxs)
+		local n = idxs:size(1)
+		local tmp1 = self:get_tmp1(7, n)
+		local tmp2 = self:get_tmp1(15, n)
 
-		self:resize(idxs:size(1))
+		self:filter(self.protos, idxs, tmp2)
+		self:filter(self.distances, idxs, tmp2)
+		self:filter(self.relevances, idxs, tmp2)
+		self:filter(self.relevance_sums, idxs, tmp1)
+
+		self:resize(n)
 		self:update_all_connections()
 	end
 end
@@ -199,7 +204,7 @@ function LARFDSSOM:remove_nodes(rounds)
 end
 ]]--
 
---tmp tensors: 1-2
+--tmp tensors: 20 (reutilizing), 1-2
 --update all connections between node i and previous nodes
 function LARFDSSOM:update_connections(i)
 	self.neighbors[i][i] = 1
@@ -216,7 +221,8 @@ function LARFDSSOM:update_connections(i)
 	r_dist:norm(r_dif, 2, 2)
 	r_dist = r_dist:squeeze(2)
 
-	local neigh = r_dist:lt(self.conn_thr)
+	local neigh = self:get_tmp1(20, i-1)
+	r_dist.lt(neigh, r_dist, self.conn_thr)
 	self.neighbors:select(1, i)
 		:narrow(1, 1, i-1)
 		:copy(neigh)
@@ -236,7 +242,7 @@ function LARFDSSOM:update_connections(i)
 end
 ]]--
 
---tmp tensors: 3-4
+--tmp tensors: 3-4, 21
 function LARFDSSOM:update_all_connections()
 	local t1 = self.relevances:view(self.n, 1, self.dim)
 		:expand(self.n, self.n, self.dim)
@@ -245,10 +251,11 @@ function LARFDSSOM:update_all_connections()
 
 	local df = self:get_tmp2(3, self.n, self.n)
 	local norm = self:get_tmp2(4, self.n, self.n)
+	local neigh = self:get_tmp2(21, self.n, self.n)
 	df:csub(t1, t2)
 	norm:norm(df, 2, 3)
 	norm = norm:squeeze(3)
-	local neigh = norm:lt(self.conn_thr)
+	norm.lt(neigh, norm, self.conn_thr)
 	self.neighbors:copy(neigh)
 end
 --[[
@@ -300,9 +307,12 @@ function LARFDSSOM:calculate_activation(pattern)
 end
 ]]--
 
---tmp tensors: 7
+--tmp tensors: 7, 22
 function LARFDSSOM:get_neighborhood(s)
-	local idx = self.neighbors[s]:nonzero()
+	local idx = self:get_tmp1(22, self.n)
+	local neigh_s = self.neighbors[s]
+	neigh_s.nonzero(idx, neigh_s)
+
 	if idx:nElement() == 0 then
 		if self.cuda then
 			idx = torch.CudaLongTensor({s})
@@ -337,24 +347,29 @@ function LARFDSSOM:interp(a, b, r)
 	return (a*(1-r)) + (b*r)
 end
 
---tmp tensors: 8-14
+--tmp tensors: 20 (reutilizing), 8-14
 function LARFDSSOM:update_relevances(distances, relevances)
-	local mx = self:get_tmp1(8, self.n)
-	local mn = self:get_tmp1(9, self.n)
-	local mi = self:get_tmp1(10, self.n)
-	local rng = self:get_tmp1(11, self.n)
-	torch.max(mx, mi, distances, 2)
-	torch.min(mn, mi, distances, 2)
+	local n = distances:size(1)
+	local mx = self:get_tmp1(8, n)
+	local mn = self:get_tmp1(9, n)
+	local rng = self:get_tmp1(11, n)
+	local bool = self:get_tmp1(20, n)
+	local idx = self:get_tmp1(10, n)
+
+	torch.max(mx, idx, distances, 2)
+	torch.min(mn, idx, distances, 2)
 	mx, mn = mx:squeeze(2), mn:squeeze(2)
 	rng:csub(mx, mn)
 
-	local idx = rng:lt(self.eps):nonzero()
+	rng.lt(bool, rng, self.eps)
+	bool.nonzero(idx, bool)
 	if idx:nElement() > 0 then
 		idx = idx:squeeze(2)
 		relevances:indexFill(1, idx, 1)
 	end
 
-	local idx = rng:ge(self.eps):nonzero()
+	rng.ge(bool, rng, self.eps)
+	bool.nonzero(idx, bool)
 	if idx:nElement() > 0 then
 		idx = idx:squeeze(2)
 		local nn = idx:size(1)
