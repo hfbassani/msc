@@ -14,6 +14,6 @@ if __name__ == '__main__':
 	#for i in range(7):
 	#	files[i][3] = True
 
-	files = files[:7]
+	files = files[7:]
 	run_files(files)
 
