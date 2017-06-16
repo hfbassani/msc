@@ -1,6 +1,6 @@
 require 'math'
 require 'torch'
---require 'cutorch'
+require 'cutorch'
 
 torch.setdefaulttensortype('torch.FloatTensor')
 
@@ -38,7 +38,7 @@ function LARFDSSOM:new(params)
 		projected = params.projected,
 		noise_filter = params.noise_filter,
 		tmp = {},
-		cuda = params.cuda or false
+		cuda = params.cuda or true
 	}
 	setmetatable(o, self)
 	return o
