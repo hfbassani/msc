@@ -9,10 +9,10 @@ if __name__ == '__main__':
 	]
 	input_folder = '../dbs'
 	params_folder = '../best_params'
-	files = [[f, input_folder, params_folder + '/' + f, False]
+	files = [[f, input_folder, params_folder + '/' + f, False, 70]
 			for f in files]
-	#for i in range(7):
-	#	files[i][3] = True
+	for i in range(7):
+		files[i][3] = True
 
 	files = files[7:]
 	run_files(files)

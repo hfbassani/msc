@@ -1,3 +1,4 @@
 0: lhs 500 pro larfdssom original
-1: comparar desempenho do original com o GPU usando os melhores parâmetros pra cada base
+1: avaliar desempenho do original usando os melhores parâmetros pra cada base
+2: mesma coisa, mas pra implementação com GPU
 

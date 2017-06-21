@@ -10,7 +10,7 @@ if __name__ == '__main__':
 	]
 	input_folder = '../dbs'
 	params_file = '../lhs_500'
-	files = [[f, input_folder, params_file, False]
+	files = [[f, input_folder, params_file, False, 70]
 			for f in files]
 	for i in range(7):
 		files[i][3] = True

@@ -32,8 +32,8 @@ flags = [
 ]
 fn = len(flags)
 
-def build_script(program, seed, params, input_file, is_real_data):
-	script = program + ' -f ' + input_file + ' -r ' + str(seed) + ' -m 70 -n 100'
+def build_script(program, seed, params, input_file, is_real_data, max_nodes):
+	script = program + ' -f ' + input_file + ' -r ' + str(seed) + ' -n 100 -m ' + str(max_nodes)
 	for i in range(fn):
 		script += ' -' + flags[i] + ' ' + params[i]
 	if is_real_data:
@@ -55,10 +55,10 @@ def eval_error(file_name, file_folder, output_folder, is_real_data):
 		ce = lines[1][9:]
 		return float(ce.strip())
 
-def execute(program, seed, params, file_name, file_folder, output_folder, is_real_data):
+def execute(program, seed, params, file_name, file_folder, output_folder, is_real_data, max_nodes):
 	input_file = file_folder + '/' + file_name + '/' + file_name + '.arff'
 	results_file = output_folder + '/results/' + file_name + '_0.results'
-	script = build_script(program, seed, params, input_file, is_real_data)
+	script = build_script(program, seed, params, input_file, is_real_data, max_nodes)
 	t0 = time.time()
 	os.system(script)
 	t1 = time.time()
@@ -66,12 +66,12 @@ def execute(program, seed, params, file_name, file_folder, output_folder, is_rea
 	os.system(script)
 	return [eval_error(file_name, file_folder, output_folder, is_real_data), (t1-t0)]
 
-def run_file(program, seeds, output_folder, output, all_params, file_name, file_folder, is_real_data):
+def run_file(program, seeds, output_folder, output, all_params, file_name, file_folder, is_real_data, max_nodes):
 	n_exec = len(seeds)
 	output.write('#' + file_folder + '/' + file_name + ' ' + str(len(all_params)) + ' configs ' + str(n_exec) + 'x\n')
 	for params in all_params:
 		# execute
-		results = [execute(program, seeds[i], params, file_name, file_folder, output_folder, is_real_data)
+		results = [execute(program, seeds[i], params, file_name, file_folder, output_folder, is_real_data, max_nodes)
 				for i in range(n_exec)]
 
 		ces = [results[i][0] for i in range(n_exec)]
@@ -105,10 +105,13 @@ def run_files(files):
 		seeds[i] = int(random.getrandbits(30))
 
 	for f in files:
-		# file_name, input_folder, params_file
-		file_name, file_folder, is_real_data = f[0], f[1], f[3]
+		file_name = f[0]
+		file_folder = f[1]
 		all_params = read_data(f[2])
+		is_real_data = f[3]
+		max_nodes = f[4]
+
 		output_path = output_folder + '/' + file_name
 		with open(output_path, 'w') as output:
-			run_file(program, seeds, output_folder, output, all_params, file_name, file_folder, is_real_data)
+			run_file(program, seeds, output_folder, output, all_params, file_name, file_folder, is_real_data, max_nodes)
 
