@@ -5,8 +5,10 @@ require 'cutorch'
 torch.setdefaulttensortype('torch.FloatTensor')
 
 --[[
-tmp tensors
-talvez tirar os que tem dimensao dn_or_n
+DEVIA TER INDEXADO SUBCONJUNTOS DIRETO COM MASCARAS AO INVES DE PEGAR OS INDICES!
+pra definir as conexoes de um novo neuronio, lembrar que o vetor de relevancias dele sempre comeca com 1's
+no final, so calcular os maximos se necessario
+separar o vencedor dos vizinhos na atualizacao
 
 todo
 tentar fazer operacoes in-place
