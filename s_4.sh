@@ -1,4 +1,7 @@
 #!/bin/bash
+#mkdir "$2/lua";
+#mkdir "$2/lua/results";
+#mkdir "$2/lua/tmp";
 langs="c lua";
 for i in $langs;
 do
