@@ -81,8 +81,8 @@ output_file = input_file..'.results'
 torch.manualSeed(seed)
 
 --read data
-data = read_arff_data(input_file, false)
-dn, dim = table.getn(data), table.getn(data[1])
+data = read_arff_data(input_file)
+dn, dim = data:size(1), data:size(2)
 params.maxcomp = math.floor(params.maxcomp * dn + 0.5)
 params.tmax = params.tmax * dn
 

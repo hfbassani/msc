@@ -643,7 +643,11 @@ function LARFDSSOM:get_assignments()
 				assig_table[i][mi[i]] = 1
 			end
 		end
-		return assig_table:nonzero()
+		local ret = assig_table:nonzero()
+		if self.cuda then
+			ret = ret:type('torch.LongTensor')
+		end
+		return ret
 	end
 end
 
@@ -672,12 +676,12 @@ function LARFDSSOM:normalize_data()
 	self.data:cdiv(rng)
 end
 
-function LARFDSSOM:process(raw_data)
+function LARFDSSOM:process(in_data)
+	self.data = in_data
 	if self.cuda then
-		self.data = torch.CudaTensor(raw_data)
-	else
-		self.data = torch.Tensor(raw_data)
+		self.data = self.data:cuda()
 	end
+
 	self.dn = self.data:size(1)
 	self.dim = self.data:size(2)
 	self:normalize_data()
