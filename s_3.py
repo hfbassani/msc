@@ -4,6 +4,7 @@ import sys
 if __name__ == '__main__':
 	files = [
 		['C008', 8], ['C016', 16], ['C032', 32], ['C064', 64], ['C128', 128],
+		['C256', 256], ['C512', 512],
 		['D0032', 8], ['D0064', 8], ['D0128', 8], ['D0256', 8],
 		['D0512', 8],
 		['D1024', 8],
@@ -16,16 +17,20 @@ if __name__ == '__main__':
 			for f in files]
 
 	slices = [
-		[0, 5],
-		[5, 9],
-		[9, 10],
-		[10, 11],
+		[0, 7],
+		[7, 11],
 		[11, 12],
-		[12, 13]
+		[12, 13],
+		[13, 14],
+		[14, 15]
 	]
 	mode = int(sys.argv[4])
-	rng = slices[mode]
-	files = files[rng[0]:rng[1]]
+	#rng = slices[mode]
+	#files = files[rng[0]:rng[1]]
+	if mode == 0:
+		files = files[5:6]
+	else:
+		files = files[6:7]
 
 	run_files(files)
 
