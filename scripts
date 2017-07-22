@@ -1,7 +1,0 @@
-0: lhs 500 pro larfdssom original
-1: avaliar desempenho do original usando os melhores parâmetros pra cada base
-2: igual ao 2, mas pra implementação com GPU
-3: igual ao 0, mas com as novas bases de dados
-4: igual ao 1+2, mas com as novas bases de dados variando # de clusters
-5: igual ao 1+2, mas com as novas bases de dados variando # de dimensões
-
